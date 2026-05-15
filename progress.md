@@ -3,7 +3,7 @@
 ## Current State
 
 **Last Updated:** 2026-05-16
-**Active Feature:** Slice 1 complete (feat-001, feat-002, feat-003 all done); feat-004 (Slice 2.1 — AIProvider abstraction) is next
+**Active Feature:** feat-004 done; feat-005 (Slice 2.2 — provider implementations Claude/OpenAI/DeepSeek/Compatible) is next
 **Dev server:** stopped
 
 ## Status
@@ -20,19 +20,22 @@
 - [x] **feat-001 (Slice 1.1) — GeneratedClip type definition**: extended `GraphicType` union with `"generated"`; added `GeneratedClip`, `GeneratedClipPromptMessage`, `GeneratedClipSourceLanguage`, and `DEFAULT_GENERATED_PARAMS_SCHEMA` in `packages/core/src/graphics/types.ts`. Auto-exported via `@openreel/core`. Workspace typecheck clean, core test suite 176/176 passing.
 - [x] **feat-002 (Slice 1.2) — GeneratedClip renderer integration**: added `renderGeneratedClip` to `ThreeJSLayerRenderer` (Three.js path) and `renderGeneratedClipOnly` to `canvas-renderers.ts` (Canvas 2D path), both draw colored rect from `params.color`. Extended `GraphicClipUnion` and added `generated` dispatch branches in `renderShapeClipToCanvas`. Widened narrow type literals in `Preview.tsx`. Added 5 unit tests for `readGeneratedClipColor`. Verified: workspace typecheck clean; `apps/web` tests 125 pass / 1 pre-existing fail unrelated to feat-002 (confirmed via git stash baseline).
 - [x] **feat-003 (Slice 1.3) — Sandbox execution layer**: chose Web Worker + procedural SceneDescription (rect/circle/line/text in normalized 0..1 coords). 6 new files in `apps/web/src/objects/`: `SceneDescription.ts` (protocol types), `sandbox-engine.ts` (pure compile + runFrame, fully unit-testable), `sandbox-protocol.ts` (postMessage wire types), `sandbox-worker.ts` (thin Worker shell), `Sandbox.ts` (main-thread wrapper with init/renderFrame/getLatestScene/dispose, configurable timeouts, requestId multiplexing, Worker factory injection for tests), `index.ts` (barrel). +22 new tests, all green.
+- [x] **feat-004 (Slice 2.1) — AIProvider abstraction**: defined provider-neutral types + AIProvider interface + two pure helpers in `apps/web/src/ai/`. Types include ChatMessage with both string-content and array-of-content-parts shapes, ToolDefinition wrapping JSON Schema, GenerateRequest, the GenerateChunk discriminated union (message-start/text-delta/tool-use-start/tool-use-input-delta/tool-use-end/done/error), FinalResult. AIProvider interface: info + listModels() + generate(request, options?) returning AsyncIterable<GenerateChunk>, with AbortSignal support. Helpers: streamToFinal collects a stream into FinalResult (handles concurrent tool calls, JSON parse errors, terminal/error chunks); validateGenerateRequest does runtime shape checking returning an error array. +24 new tests, all green.
 
 ### What's In Progress
 
-- [ ] **feat-004 — AIProvider abstraction**: not yet started. First step of Slice 2 (multi-provider AI).
+- [ ] **feat-005 — Provider implementations (Claude / OpenAI / DeepSeek / Compatible)**: not yet started
 
 ### What's Next
 
-1. Define `AIProvider` interface in `apps/web/src/ai/AIProvider.ts`: generate(req) → AsyncIterable<chunk>, listModels()
-2. Pick JSON Schema as the lowest-common-denominator tool-call format
-3. Decide message shape (system prompt, messages array, tools, stream, temperature)
-4. Implement `apps/web/src/ai/providers/registry.ts` for managing the active provider
-5. Stub one provider end-to-end first (ClaudeProvider is highest quality for code generation) before fanning out to OpenAI/DeepSeek/Compatible
-6. Sandbox integration with the renderers (so a GeneratedClip with real source actually renders the AI shapes) was originally planned for feat-003 but split to a future feat — feat-002's hardcoded `params.color` rect path is still in use. Track this as carry-over work.
+1. Install npm packages: `@anthropic-ai/sdk` and `openai`. Verify they install through npmmirror; if blocked, fall back to direct API calls via fetch
+2. Implement `apps/web/src/ai/providers/ClaudeProvider.ts` — use anthropic SDK's stream, translate native events to GenerateChunk, enable prompt caching for system+tools blocks
+3. Implement `apps/web/src/ai/providers/OpenAIProvider.ts` — use openai SDK's stream, translate function_calling to tool-use chunks
+4. Implement `apps/web/src/ai/providers/DeepSeekProvider.ts` — reuse OpenAIProvider's translation logic with `baseURL: 'https://api.deepseek.com/v1'`
+5. Implement `apps/web/src/ai/providers/CompatibleProvider.ts` — user-supplied baseURL/key/model; covers Kimi/智谱/Ollama/vLLM
+6. Implement `apps/web/src/ai/providers/registry.ts` — register providers, current-selection persistence in IndexedDB
+7. Implement `apps/web/src/ai/keyStore.ts` — IndexedDB-backed encrypted key storage
+8. Carry-over: sandbox integration with renderers (feat-002's hardcoded `params.color` rect path still in use)
 
 ## Blockers / Risks
 
@@ -70,6 +73,13 @@
 - `apps/web/src/objects/index.ts` — new — module barrel
 - `apps/web/src/objects/sandbox-engine.test.ts` — new — 14 unit tests for compile + runFrame
 - `apps/web/src/objects/Sandbox.test.ts` — new — 8 unit tests using FakeWorker
+- `apps/web/src/ai/types.ts` — new — provider-neutral AI types (feat-004)
+- `apps/web/src/ai/AIProvider.ts` — new — AIProvider interface
+- `apps/web/src/ai/streamToFinal.ts` — new — pure helper to collect stream into FinalResult
+- `apps/web/src/ai/validateGenerateRequest.ts` — new — runtime shape check for outgoing requests
+- `apps/web/src/ai/index.ts` — new — barrel
+- `apps/web/src/ai/streamToFinal.test.ts` — new — 8 unit tests
+- `apps/web/src/ai/validateGenerateRequest.test.ts` — new — 16 unit tests
 
 ## Evidence of Completion (feat-000 / Slice 0)
 

@@ -40,8 +40,8 @@
       "name": "Slice 2.1 — AIProvider abstraction",
       "description": "Define `AIProvider` interface in `apps/web/src/ai/AIProvider.ts`. Methods: generate(request) → AsyncIterable<chunk>, listModels(). Common request shape (system/messages/tools/stream/temperature). Tools use JSON Schema as the lowest common denominator across providers.",
       "dependencies": ["feat-000"],
-      "status": "not-started",
-      "evidence": ""
+      "status": "done",
+      "evidence": "Defined provider-neutral types in `apps/web/src/ai/types.ts` (Role, ChatMessage, ContentPart with text/tool_use/tool_result, ToolDefinition with JSON Schema inputSchema, GenerateRequest with model/system/messages/tools/forceTool/temperature/maxTokens, FinishReason, TokenUsage, the GenerateChunk discriminated union: message-start | text-delta | tool-use-start | tool-use-input-delta | tool-use-end | done | error, FinalResult assembly type, FinalToolCall, ModelInfo, ProviderInfo). `AIProvider.ts` defines the interface: info, listModels(), generate(request, options?) -> AsyncIterable<GenerateChunk>, plus GenerateOptions with AbortSignal. Two pure helpers: `streamToFinal` (consume AsyncIterable into FinalResult, assembles concatenated text + ordered tool calls with JSON parsing, throws StreamErrorWithPartialResult on error chunks while preserving partial), `validateGenerateRequest` (runtime shape check returning array of human-readable error strings — empty == valid). `index.ts` barrel exports the public surface. Verification: workspace `pnpm typecheck` clean across all 5 projects; `pnpm --filter @openreel/web test:run` 171 passed / 7 skipped (vs 147 baseline = +24 new tests, all green: streamToFinal.test.ts 8 cases for text/tool-call/concurrent-tools/parse-error/empty-input/usage/error/post-done, validateGenerateRequest.test.ts 16 cases covering model/messages/tools/forceTool/temperature/maxTokens edges). Same pre-existing project-store.test.ts:851 failure as before."
     },
     {
       "id": "feat-005",
