@@ -36,3 +36,8 @@ export {
 } from "./streamToFinal";
 
 export { validateGenerateRequest } from "./validateGenerateRequest";
+
+// Provider implementations (feat-005)
+export { ClaudeProvider, type ClaudeProviderOptions } from "./providers/ClaudeProvider";
+export { DeepSeekProvider, type DeepSeekProviderOptions } from "./providers/DeepSeekProvider";
+export { ProviderRegistry } from "./providers/registry";

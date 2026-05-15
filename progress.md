@@ -3,7 +3,7 @@
 ## Current State
 
 **Last Updated:** 2026-05-16
-**Active Feature:** feat-004 done; feat-005 (Slice 2.2 — provider implementations Claude/OpenAI/DeepSeek/Compatible) is next
+**Active Feature:** feat-005 done (Claude + DeepSeek shipped; OpenAI/Compatible deferred). feat-006 (Slice 2.3 — AI Panel UI + key storage) is next
 **Dev server:** stopped
 
 ## Status
@@ -21,21 +21,22 @@
 - [x] **feat-002 (Slice 1.2) — GeneratedClip renderer integration**: added `renderGeneratedClip` to `ThreeJSLayerRenderer` (Three.js path) and `renderGeneratedClipOnly` to `canvas-renderers.ts` (Canvas 2D path), both draw colored rect from `params.color`. Extended `GraphicClipUnion` and added `generated` dispatch branches in `renderShapeClipToCanvas`. Widened narrow type literals in `Preview.tsx`. Added 5 unit tests for `readGeneratedClipColor`. Verified: workspace typecheck clean; `apps/web` tests 125 pass / 1 pre-existing fail unrelated to feat-002 (confirmed via git stash baseline).
 - [x] **feat-003 (Slice 1.3) — Sandbox execution layer**: chose Web Worker + procedural SceneDescription (rect/circle/line/text in normalized 0..1 coords). 6 new files in `apps/web/src/objects/`: `SceneDescription.ts` (protocol types), `sandbox-engine.ts` (pure compile + runFrame, fully unit-testable), `sandbox-protocol.ts` (postMessage wire types), `sandbox-worker.ts` (thin Worker shell), `Sandbox.ts` (main-thread wrapper with init/renderFrame/getLatestScene/dispose, configurable timeouts, requestId multiplexing, Worker factory injection for tests), `index.ts` (barrel). +22 new tests, all green.
 - [x] **feat-004 (Slice 2.1) — AIProvider abstraction**: defined provider-neutral types + AIProvider interface + two pure helpers in `apps/web/src/ai/`. Types include ChatMessage with both string-content and array-of-content-parts shapes, ToolDefinition wrapping JSON Schema, GenerateRequest, the GenerateChunk discriminated union (message-start/text-delta/tool-use-start/tool-use-input-delta/tool-use-end/done/error), FinalResult. AIProvider interface: info + listModels() + generate(request, options?) returning AsyncIterable<GenerateChunk>, with AbortSignal support. Helpers: streamToFinal collects a stream into FinalResult (handles concurrent tool calls, JSON parse errors, terminal/error chunks); validateGenerateRequest does runtime shape checking returning an error array. +24 new tests, all green.
+- [x] **feat-005 (Slice 2.2) — Provider implementations (Claude + DeepSeek)**: installed @anthropic-ai/sdk ^0.96.0 and openai ^6.37.0. Implemented two providers via stream translators (openai-translation.ts, anthropic-translation.ts), DeepSeekProvider (openai SDK + DeepSeek baseURL, deepseek-chat / deepseek-reasoner), ClaudeProvider (anthropic SDK with ephemeral prompt caching on system + last tool, opus-4-7/sonnet-4-6/haiku-4-5), ProviderRegistry. OpenAIProvider and CompatibleProvider deferred — DeepSeek's openai-compatible path already exercises that code. Dev-time keys flow through apps/web/.env.example (VITE_*). Encrypted IndexedDB key storage deferred to feat-006. +42 new tests, all green.
 
 ### What's In Progress
 
-- [ ] **feat-005 — Provider implementations (Claude / OpenAI / DeepSeek / Compatible)**: not yet started
+- [ ] **feat-006 — AI Panel UI + visual editing + provider settings**: not yet started
 
 ### What's Next
 
-1. Install npm packages: `@anthropic-ai/sdk` and `openai`. Verify they install through npmmirror; if blocked, fall back to direct API calls via fetch
-2. Implement `apps/web/src/ai/providers/ClaudeProvider.ts` — use anthropic SDK's stream, translate native events to GenerateChunk, enable prompt caching for system+tools blocks
-3. Implement `apps/web/src/ai/providers/OpenAIProvider.ts` — use openai SDK's stream, translate function_calling to tool-use chunks
-4. Implement `apps/web/src/ai/providers/DeepSeekProvider.ts` — reuse OpenAIProvider's translation logic with `baseURL: 'https://api.deepseek.com/v1'`
-5. Implement `apps/web/src/ai/providers/CompatibleProvider.ts` — user-supplied baseURL/key/model; covers Kimi/智谱/Ollama/vLLM
-6. Implement `apps/web/src/ai/providers/registry.ts` — register providers, current-selection persistence in IndexedDB
-7. Implement `apps/web/src/ai/keyStore.ts` — IndexedDB-backed encrypted key storage
-8. Carry-over: sandbox integration with renderers (feat-002's hardcoded `params.color` rect path still in use)
+Open questions before feat-006 begins:
+1. Decide where the AI panel lives in the UI — likely a tab in the existing right inspector panel, or a slide-out from the left toolbar
+2. Settings UI for adding API keys per provider + selecting active provider/model
+3. Encrypted IndexedDB-backed keyStore for production key storage
+4. Wire the AI panel: prompt input → call active provider → display streaming text → on tool-call completion, validate the source, init sandbox with it, add a GeneratedClip to the project, integrate the sandbox into the canvas-renderers so we finally swap out the hardcoded `params.color` rect for real shapes from sandbox.getLatestScene()
+5. Carry-over: sandbox integration with renderers (feat-002's hardcoded `params.color` rect path still in use)
+
+Note on real-API verification: feat-005 ships with mock-only tests. The user has a DeepSeek API key. Once feat-006 lands a minimal AI panel, the end-to-end "prompt → DeepSeek → SceneDescription → render" loop can be verified live.
 
 ## Blockers / Risks
 
@@ -80,6 +81,14 @@
 - `apps/web/src/ai/index.ts` — new — barrel
 - `apps/web/src/ai/streamToFinal.test.ts` — new — 8 unit tests
 - `apps/web/src/ai/validateGenerateRequest.test.ts` — new — 16 unit tests
+- `apps/web/src/ai/providers/openai-translation.ts` — new — OpenAI-compatible stream translator (DeepSeek/OpenAI/Compatible all share)
+- `apps/web/src/ai/providers/anthropic-translation.ts` — new — Anthropic stream translator
+- `apps/web/src/ai/providers/DeepSeekProvider.ts` — new — DeepSeek provider via openai SDK
+- `apps/web/src/ai/providers/ClaudeProvider.ts` — new — Claude provider with prompt caching
+- `apps/web/src/ai/providers/registry.ts` — new — ProviderRegistry with auto-default and current selection
+- `apps/web/src/ai/providers/*.test.ts` — new — 42 unit tests across 5 files
+- `apps/web/.env.example` — modified — added VITE_ANTHROPIC_API_KEY / VITE_OPENAI_API_KEY / VITE_DEEPSEEK_API_KEY / VITE_COMPATIBLE_* dev vars
+- `apps/web/package.json` — modified — added @anthropic-ai/sdk and openai as dependencies
 
 ## Evidence of Completion (feat-000 / Slice 0)
 
