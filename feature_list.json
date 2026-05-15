@@ -24,8 +24,8 @@
       "name": "Slice 1.2 — GeneratedClip renderer integration",
       "description": "Extend `ThreeJSLayerRenderer` with `renderGeneratedClip(clip, time)` or create sibling `GeneratedClipRenderer` sharing the same Scene/Camera. Hook into `canvas-renderers.ts` dispatch. For Slice 1 MVP, support a hard-coded test clip (no AI yet) that draws something visible.",
       "dependencies": ["feat-001"],
-      "status": "not-started",
-      "evidence": ""
+      "status": "done",
+      "evidence": "Added `renderGeneratedClip` to ThreeJSLayerRenderer (Three.js / WebGL path) and `renderGeneratedClipOnly` (Canvas 2D fast path) — both draw a colored rectangle whose fill comes from `params.color` (default `#3b82f6`). Source string is intentionally ignored at this layer (sandbox lands in feat-003). Exposed `readGeneratedClipColor` + `DEFAULT_GENERATED_CLIP_COLOR` from threejs-layer-renderer. Extended `GraphicClipUnion` and added `generated` branches in both the 3D dispatch (line ~1540) and 2D dispatch (line ~1606) inside `renderShapeClipToCanvas`. Widened `ShapeClip | SVGClip | StickerClip` literals in Preview.tsx to include GeneratedClip (`getGraphicClipDisplayBounds`, `findGraphicClipAtPoint`, and 5 other call sites). Added 5 unit tests for `readGeneratedClipColor` in `canvas-renderers.test.ts`. Verification: workspace `pnpm typecheck` clean across all 5 projects; `pnpm --filter @openreel/web test:run` 125 passed / 7 skipped (5 new tests for feat-002 all green); the single failing test (`project-store.test.ts:851` `editing templates` track ordering) is pre-existing on upstream main — verified by git-stashing feat-002 changes and reproducing the same failure (120 passed baseline -> 125 passed with feat-002 = exactly +5 new)."
     },
     {
       "id": "feat-003",

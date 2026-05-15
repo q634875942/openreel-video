@@ -3,7 +3,7 @@
 ## Current State
 
 **Last Updated:** 2026-05-16
-**Active Feature:** feat-001 done; feat-002 (Slice 1.2 — GeneratedClip renderer integration) is next
+**Active Feature:** feat-002 done; feat-003 (Slice 1.3 — Sandbox execution layer) is next
 **Dev server:** stopped
 
 ## Status
@@ -18,18 +18,20 @@
 - [x] Slice 0 committed as `c55a542` (`.npmrc`, `SLICE0_FINDINGS.md`)
 - [x] Harness scaffolded: AGENTS.md, CLAUDE.md, feature_list.json, init.sh, init.ps1, progress.md
 - [x] **feat-001 (Slice 1.1) — GeneratedClip type definition**: extended `GraphicType` union with `"generated"`; added `GeneratedClip`, `GeneratedClipPromptMessage`, `GeneratedClipSourceLanguage`, and `DEFAULT_GENERATED_PARAMS_SCHEMA` in `packages/core/src/graphics/types.ts`. Auto-exported via `@openreel/core`. Workspace typecheck clean, core test suite 176/176 passing.
+- [x] **feat-002 (Slice 1.2) — GeneratedClip renderer integration**: added `renderGeneratedClip` to `ThreeJSLayerRenderer` (Three.js path) and `renderGeneratedClipOnly` to `canvas-renderers.ts` (Canvas 2D path), both draw colored rect from `params.color`. Extended `GraphicClipUnion` and added `generated` dispatch branches in `renderShapeClipToCanvas`. Widened narrow type literals in `Preview.tsx`. Added 5 unit tests for `readGeneratedClipColor`. Verified: workspace typecheck clean; `apps/web` tests 125 pass / 1 pre-existing fail unrelated to feat-002 (confirmed via git stash baseline).
 
 ### What's In Progress
 
-- [ ] **feat-002 — GeneratedClip renderer integration**: not yet started
+- [ ] **feat-003 — Sandbox execution layer**: not yet started. This is where `clip.source` actually gets executed instead of ignored.
 
 ### What's Next
 
-1. Read `apps/web/src/components/editor/preview/canvas-renderers.ts` end-to-end (only read first 120 lines so far) to see the per-frame dispatch on clip type
-2. Read the full `ThreeJSLayerRenderer` to understand the render method signatures and how it returns canvas data
-3. Decide: extend `ThreeJSLayerRenderer` with `renderGeneratedClip(clip, time)`, or add a sibling `GeneratedClipRenderer` that shares Scene/Camera. Probably the former for v1 since `ThreeJSLayerRenderer` already owns the Scene
-4. Implement a hard-coded smoke test: render a clip whose `source` is ignored for now (Slice 1.3 introduces the sandbox); just draw a colored rectangle from the clip's `transform` and `params.color`
-5. Verify in `pnpm dev` that the smoke test clip appears on the preview canvas at the expected position
+1. Decide sandbox approach: Web Worker + Comlink for full isolation vs `new Function` with vetted globals for simplicity. Lean toward Web Worker for security but evaluate boot/teardown cost
+2. Design message protocol: `{ init(source) }` → `{ renderFrame(params, t) returns ImageData | OffscreenCanvas }`
+3. Decide what API surface the AI code can use: Three.js objects only? Canvas 2D context? Both?
+4. Implement basic sandbox in `apps/web/src/objects/Sandbox.ts`
+5. Wire feat-002's renderers to call sandbox.renderFrame() instead of drawing a hard-coded rectangle
+6. Add a hard-coded "stick figure walking" demo source to exercise the path before feat-006 wires up real AI
 
 ## Blockers / Risks
 
@@ -55,6 +57,10 @@
 - `init.ps1` — new — PowerShell verification script
 - `progress.md` — new + updated — this file
 - `packages/core/src/graphics/types.ts` — modified — extended `GraphicType`; added `GeneratedClip` and friends for feat-001
+- `apps/web/src/components/editor/preview/threejs-layer-renderer.ts` — modified — added `renderGeneratedClip`, `readGeneratedClipColor`, `DEFAULT_GENERATED_CLIP_COLOR` for feat-002
+- `apps/web/src/components/editor/preview/canvas-renderers.ts` — modified — extended `GraphicClipUnion`, added `renderGeneratedClipOnly`, added `generated` branches in `renderShapeClipToCanvas` dispatch for feat-002
+- `apps/web/src/components/editor/preview/canvas-renderers.test.ts` — modified — added 5 unit tests for `readGeneratedClipColor`
+- `apps/web/src/components/editor/Preview.tsx` — modified — widened narrow `ShapeClip | SVGClip | StickerClip` type literals to include `GeneratedClip` (8 sites)
 
 ## Evidence of Completion (feat-000 / Slice 0)
 

@@ -5,6 +5,7 @@ import type {
   ShapeClip,
   SVGClip,
   StickerClip,
+  GeneratedClip,
 } from "@openreel/core";
 import type { BlendMode } from "@openreel/core";
 
@@ -29,6 +30,19 @@ const BLEND_MODE_MAP: Record<BlendMode, THREE.Blending> = {
   color: THREE.NormalBlending, // Approximated as normal
   luminosity: THREE.NormalBlending, // Approximated as normal
 };
+
+// Slice 1 MVP helper. Reads a string color from a GeneratedClip's params bag,
+// falling back to the default shape blue. Exposed so the 2D fallback in
+// canvas-renderers.ts can share the same convention.
+export const DEFAULT_GENERATED_CLIP_COLOR = "#3b82f6";
+
+export function readGeneratedClipColor(generatedClip: GeneratedClip): string {
+  const params = generatedClip.params ?? {};
+  const color = (params as { color?: unknown }).color;
+  return typeof color === "string" && color.length > 0
+    ? color
+    : DEFAULT_GENERATED_CLIP_COLOR;
+}
 
 export class ThreeJSLayerRenderer {
   private scene: THREE.Scene;
@@ -466,6 +480,61 @@ export class ThreeJSLayerRenderer {
       material,
       stickerClip.blendMode || "normal",
       stickerClip.blendOpacity ?? 100,
+    );
+
+    const geometry = new THREE.PlaneGeometry(canvasWidth, canvasHeight);
+    const mesh = new THREE.Mesh(geometry, material);
+
+    this.applyTransform(mesh, transform, canvasWidth, canvasHeight);
+
+    return mesh;
+  }
+
+  /**
+   * Slice 1 MVP: render a GeneratedClip by drawing a colored rectangle.
+   * The clip's `source` is intentionally ignored at this layer — sandboxed
+   * execution arrives in feat-003. Color is read from `params.color`.
+   */
+  renderGeneratedClip(
+    generatedClip: GeneratedClip,
+    canvasWidth: number,
+    canvasHeight: number,
+  ): THREE.Mesh | null {
+    const { transform } = generatedClip;
+    const fillColor = readGeneratedClipColor(generatedClip);
+
+    const texture = this.createCanvasTexture(
+      (ctx) => {
+        const posX = transform.position.x * canvasWidth;
+        const posY = transform.position.y * canvasHeight;
+
+        ctx.translate(posX, posY);
+        ctx.scale(transform.scale.x, transform.scale.y);
+
+        const baseSize = Math.min(canvasWidth, canvasHeight);
+        const rectSize = baseSize * 0.15;
+        const halfSize = rectSize / 2;
+
+        ctx.fillStyle = fillColor;
+        ctx.beginPath();
+        ctx.rect(-halfSize, -halfSize, rectSize, rectSize);
+        ctx.fill();
+      },
+      canvasWidth,
+      canvasHeight,
+    );
+
+    const material = new THREE.MeshBasicMaterial({
+      map: texture,
+      transparent: true,
+      opacity: transform.opacity,
+      side: THREE.DoubleSide,
+    });
+
+    this.applyBlendMode(
+      material,
+      generatedClip.blendMode || "normal",
+      generatedClip.blendOpacity ?? 100,
     );
 
     const geometry = new THREE.PlaneGeometry(canvasWidth, canvasHeight);

@@ -1,7 +1,11 @@
 import { describe, it, expect } from "vitest";
 import { getAnimatedTransform } from "./canvas-renderers";
+import {
+  readGeneratedClipColor,
+  DEFAULT_GENERATED_CLIP_COLOR,
+} from "./threejs-layer-renderer";
 import { DEFAULT_TRANSFORM, type ClipTransform } from "./types";
-import type { Keyframe } from "@openreel/core";
+import type { GeneratedClip, Keyframe } from "@openreel/core";
 
 describe("getAnimatedTransform", () => {
   const baseTransform: ClipTransform = {
@@ -131,6 +135,56 @@ describe("GPU Transform Normalization", () => {
     const topRight = simulateShaderNormalization(canvasWidth / 2, canvasHeight / 2);
     expect(topRight.x).toBe(1);
     expect(topRight.y).toBe(1);
+  });
+});
+
+describe("readGeneratedClipColor (feat-002)", () => {
+  // Tiny factory so each test gets an isolated, valid GeneratedClip.
+  const makeClip = (params: Record<string, unknown>): GeneratedClip => ({
+    id: "test-clip",
+    trackId: "test-track",
+    startTime: 0,
+    duration: 2,
+    type: "generated",
+    transform: {
+      position: { x: 0.5, y: 0.5 },
+      scale: { x: 1, y: 1 },
+      rotation: 0,
+      anchor: { x: 0.5, y: 0.5 },
+      opacity: 1,
+    },
+    keyframes: [],
+    source: "",
+    sourceLanguage: "typescript",
+    providerId: "test",
+    promptHistory: [],
+    paramsSchema: {},
+    params,
+  });
+
+  it("returns the configured color when params.color is a non-empty string", () => {
+    const clip = makeClip({ color: "#ff0000" });
+    expect(readGeneratedClipColor(clip)).toBe("#ff0000");
+  });
+
+  it("falls back to the default when params is empty", () => {
+    const clip = makeClip({});
+    expect(readGeneratedClipColor(clip)).toBe(DEFAULT_GENERATED_CLIP_COLOR);
+  });
+
+  it("falls back to the default when params.color is missing", () => {
+    const clip = makeClip({ width: 100, height: 50 });
+    expect(readGeneratedClipColor(clip)).toBe(DEFAULT_GENERATED_CLIP_COLOR);
+  });
+
+  it("falls back to the default when params.color is not a string", () => {
+    const clip = makeClip({ color: 0xff0000 });
+    expect(readGeneratedClipColor(clip)).toBe(DEFAULT_GENERATED_CLIP_COLOR);
+  });
+
+  it("falls back to the default when params.color is the empty string", () => {
+    const clip = makeClip({ color: "" });
+    expect(readGeneratedClipColor(clip)).toBe(DEFAULT_GENERATED_CLIP_COLOR);
   });
 });
 

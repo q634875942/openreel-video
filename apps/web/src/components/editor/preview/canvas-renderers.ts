@@ -4,6 +4,7 @@ import {
   type ShapeClip,
   type SVGClip,
   type StickerClip,
+  type GeneratedClip,
   type Subtitle,
   renderAnimatedCaption,
   type WordSegment,
@@ -14,12 +15,15 @@ import {
 } from "@openreel/core";
 import * as THREE from "three";
 
-type GraphicClipUnion = ShapeClip | SVGClip | StickerClip;
+type GraphicClipUnion = ShapeClip | SVGClip | StickerClip | GeneratedClip;
 import { getEffectsBridge } from "../../../bridges/effects-bridge";
 import { getTransitionBridge } from "../../../bridges/transition-bridge";
 import type { ClipTransform } from "./types";
 import { DEFAULT_TRANSFORM } from "./types";
-import { ThreeJSLayerRenderer } from "./threejs-layer-renderer";
+import {
+  ThreeJSLayerRenderer,
+  readGeneratedClipColor,
+} from "./threejs-layer-renderer";
 
 let lastEffectsLogTime = 0;
 let threeJSRenderer: ThreeJSLayerRenderer | null = null;
@@ -1355,6 +1359,38 @@ const renderSVGClip = (
   ctx.restore();
 };
 
+// Slice 1 MVP for feat-002. Draws a colored rectangle whose color is read from
+// `params.color`. The clip's `source` is intentionally ignored at this layer —
+// sandboxed execution arrives in feat-003.
+const renderGeneratedClipOnly = (
+  ctx: CanvasRenderingContext2D,
+  generatedClip: GeneratedClip,
+  canvasWidth: number,
+  canvasHeight: number,
+): void => {
+  const { transform } = generatedClip;
+  const fillColor = readGeneratedClipColor(generatedClip);
+
+  ctx.save();
+
+  const posX = transform.position.x * canvasWidth;
+  const posY = transform.position.y * canvasHeight;
+
+  ctx.translate(posX, posY);
+  ctx.rotate((transform.rotation * Math.PI) / 180);
+  ctx.scale(transform.scale.x, transform.scale.y);
+  ctx.globalAlpha = transform.opacity;
+
+  const baseSize = Math.min(canvasWidth, canvasHeight);
+  const rectSize = baseSize * 0.15;
+  const halfSize = rectSize / 2;
+
+  ctx.fillStyle = fillColor;
+  ctx.fillRect(-halfSize, -halfSize, rectSize, rectSize);
+
+  ctx.restore();
+};
+
 const renderShapeOnly = (
   ctx: CanvasRenderingContext2D,
   shapeClip: ShapeClip,
@@ -1546,6 +1582,12 @@ export const renderShapeClipToCanvas = (
         canvasWidth,
         canvasHeight,
       );
+    } else if (transformedClip.type === "generated") {
+      mesh = threeJSRenderer.renderGeneratedClip(
+        transformedClip as GeneratedClip,
+        canvasWidth,
+        canvasHeight,
+      );
     } else {
       mesh = threeJSRenderer.renderShapeClip(
         transformedClip as ShapeClip,
@@ -1580,6 +1622,13 @@ export const renderShapeClipToCanvas = (
       canvasWidth,
       canvasHeight,
       time,
+    );
+  } else if (transformedClip.type === "generated") {
+    renderGeneratedClipOnly(
+      ctx,
+      transformedClip as GeneratedClip,
+      canvasWidth,
+      canvasHeight,
     );
   } else {
     renderShapeOnly(

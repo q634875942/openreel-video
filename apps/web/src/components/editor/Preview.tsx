@@ -46,6 +46,7 @@ import {
   type ShapeClip,
   type SVGClip,
   type StickerClip,
+  type GeneratedClip,
   type Subtitle,
   type Track,
 } from "@openreel/core";
@@ -1114,7 +1115,7 @@ export const Preview: React.FC = () => {
     async (
       ctx: CanvasRenderingContext2D,
       tracks: Track[],
-      shapeClips: (ShapeClip | SVGClip | StickerClip)[],
+      shapeClips: (ShapeClip | SVGClip | StickerClip | GeneratedClip)[],
       textClips: TextClip[],
       time: number,
       canvasWidth: number,
@@ -4586,7 +4587,7 @@ export const Preview: React.FC = () => {
   }, [selectedItems]);
 
   const selectedShapeClip = useMemo<
-    ShapeClip | SVGClip | StickerClip | null
+    ShapeClip | SVGClip | StickerClip | GeneratedClip | null
   >(() => {
     if (!selectedShapeClipId) return null;
     return (
@@ -4682,7 +4683,7 @@ export const Preview: React.FC = () => {
   }, [selectedShapeClip, settings.width, settings.height, canvasSize]);
 
   const getGraphicClipDisplayBounds = useCallback(
-    (clip: ShapeClip | SVGClip | StickerClip) => {
+    (clip: ShapeClip | SVGClip | StickerClip | GeneratedClip) => {
       if (!canvasRef.current || !overlayRef.current) return null;
 
       const canvas = canvasRef.current;
@@ -4760,7 +4761,10 @@ export const Preview: React.FC = () => {
   );
 
   const findGraphicClipAtPoint = useCallback(
-    (clientX: number, clientY: number): ShapeClip | SVGClip | StickerClip | null => {
+    (
+      clientX: number,
+      clientY: number,
+    ): ShapeClip | SVGClip | StickerClip | GeneratedClip | null => {
       if (!overlayRef.current) return null;
       const overlayRect = overlayRef.current.getBoundingClientRect();
       const pointX = clientX - overlayRect.left;
