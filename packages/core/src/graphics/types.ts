@@ -18,7 +18,7 @@ export interface GraphicClip {
   readonly metadata?: ClipMetadata;
 }
 
-export type GraphicType = "shape" | "svg" | "sticker" | "emoji";
+export type GraphicType = "shape" | "svg" | "sticker" | "emoji" | "generated";
 
 export interface ShapeClip extends GraphicClip {
   readonly type: "shape";
@@ -137,6 +137,46 @@ export interface StickerClip extends GraphicClip {
   readonly category?: string;
   readonly name?: string;
 }
+
+// === GeneratedClip ============================================================
+// Added by the AI-generated-object initiative (see SLICE0_FINDINGS.md and
+// AGENTS.md at the repo root). A GeneratedClip is a clip whose visual output is
+// produced by AI-generated TypeScript/JavaScript source code, sandboxed at
+// runtime and rendered through the existing ThreeJSLayerRenderer pipeline.
+// =============================================================================
+
+export type GeneratedClipSourceLanguage = "typescript" | "javascript";
+
+export interface GeneratedClipPromptMessage {
+  readonly role: "system" | "user" | "assistant";
+  readonly content: string;
+}
+
+export interface GeneratedClip extends GraphicClip {
+  readonly type: "generated";
+  // Source code that renders the object; executed in a sandbox at runtime.
+  readonly source: string;
+  readonly sourceLanguage: GeneratedClipSourceLanguage;
+  // Provider that produced the source (e.g. "claude", "openai", "deepseek").
+  readonly providerId: string;
+  // Optional model identifier within the provider (e.g. "claude-sonnet-4-6").
+  readonly model?: string;
+  // Conversation history; allows iterative refinement ("ask AI to fix this").
+  readonly promptHistory: readonly GeneratedClipPromptMessage[];
+  // JSON Schema describing user-editable parameters. Runtime-validated by ajv.
+  readonly paramsSchema: Record<string, unknown>;
+  // Current parameter values; should validate against paramsSchema.
+  readonly params: Record<string, unknown>;
+  // Optional entry/exit animations, mirroring SVGClip's animation hooks.
+  readonly entryAnimation?: GraphicAnimation;
+  readonly exitAnimation?: GraphicAnimation;
+}
+
+export const DEFAULT_GENERATED_PARAMS_SCHEMA: Record<string, unknown> = {
+  type: "object",
+  properties: {},
+  additionalProperties: false,
+};
 
 export type ShapeType =
   | "rectangle"

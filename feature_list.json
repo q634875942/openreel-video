@@ -16,8 +16,8 @@
       "name": "Slice 1.1 — GeneratedClip type definition",
       "description": "Add `GeneratedClip` to `packages/core/src/graphics/types.ts` mirroring ShapeClip/SVGClip shape. Fields: source (TS string), sourceLanguage, providerId, promptHistory, paramsSchema, params, transform, keyframes, blendMode, blendOpacity. Re-export from @openreel/core.",
       "dependencies": ["feat-000"],
-      "status": "not-started",
-      "evidence": ""
+      "status": "done",
+      "evidence": "Extended GraphicType union with 'generated'; added GeneratedClip interface, GeneratedClipPromptMessage, GeneratedClipSourceLanguage type alias, and DEFAULT_GENERATED_PARAMS_SCHEMA constant. Auto-exported via existing `graphics/index.ts` → `core/src/index.ts` chain (no manual re-export needed). Verified: `pnpm typecheck` clean across all 5 workspace projects (apps/web, apps/image, packages/core, packages/ui, packages/image-core); `pnpm --filter @openreel/core test:run` 176/176 tests pass in 1.22s, including 50 graphics-engine tests."
     },
     {
       "id": "feat-002",

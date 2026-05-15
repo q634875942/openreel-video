@@ -3,7 +3,7 @@
 ## Current State
 
 **Last Updated:** 2026-05-16
-**Active Feature:** feat-001 (Slice 1.1 — GeneratedClip type definition) — not yet started
+**Active Feature:** feat-001 done; feat-002 (Slice 1.2 — GeneratedClip renderer integration) is next
 **Dev server:** stopped
 
 ## Status
@@ -17,21 +17,19 @@
 - [x] Architecture mapped — see [SLICE0_FINDINGS.md](SLICE0_FINDINGS.md)
 - [x] Slice 0 committed as `c55a542` (`.npmrc`, `SLICE0_FINDINGS.md`)
 - [x] Harness scaffolded: AGENTS.md, CLAUDE.md, feature_list.json, init.sh, init.ps1, progress.md
+- [x] **feat-001 (Slice 1.1) — GeneratedClip type definition**: extended `GraphicType` union with `"generated"`; added `GeneratedClip`, `GeneratedClipPromptMessage`, `GeneratedClipSourceLanguage`, and `DEFAULT_GENERATED_PARAMS_SCHEMA` in `packages/core/src/graphics/types.ts`. Auto-exported via `@openreel/core`. Workspace typecheck clean, core test suite 176/176 passing.
 
 ### What's In Progress
 
-- [ ] **feat-001 — GeneratedClip type definition**: not yet started
-  - Target file: `packages/core/src/graphics/types.ts` (add new interface alongside ShapeClip/SVGClip)
-  - Re-export from `packages/core/src/index.ts` (or wherever the public surface is)
-  - Then add type tests if there are any existing type-level tests for clip union types
+- [ ] **feat-002 — GeneratedClip renderer integration**: not yet started
 
 ### What's Next
 
-1. Read `packages/core/src/graphics/types.ts` end-to-end to see exact BaseClip shape and how ShapeClip is structured
-2. Define the `GeneratedClip` interface mirroring that shape
-3. Add the new variant to whatever discriminated union `Clip` is
-4. Ensure `pnpm typecheck` still passes across the workspace
-5. Mark feat-001 done in `feature_list.json` with evidence; move to feat-002
+1. Read `apps/web/src/components/editor/preview/canvas-renderers.ts` end-to-end (only read first 120 lines so far) to see the per-frame dispatch on clip type
+2. Read the full `ThreeJSLayerRenderer` to understand the render method signatures and how it returns canvas data
+3. Decide: extend `ThreeJSLayerRenderer` with `renderGeneratedClip(clip, time)`, or add a sibling `GeneratedClipRenderer` that shares Scene/Camera. Probably the former for v1 since `ThreeJSLayerRenderer` already owns the Scene
+4. Implement a hard-coded smoke test: render a clip whose `source` is ignored for now (Slice 1.3 introduces the sandbox); just draw a colored rectangle from the clip's `transform` and `params.color`
+5. Verify in `pnpm dev` that the smoke test clip appears on the preview canvas at the expected position
 
 ## Blockers / Risks
 
@@ -52,10 +50,11 @@
 - `SLICE0_FINDINGS.md` — new — architecture exploration findings
 - `AGENTS.md` — new — harness routing layer
 - `CLAUDE.md` — new — delegates to AGENTS.md
-- `feature_list.json` — new — Slice 1–6 mapped to feat-001 through feat-010
+- `feature_list.json` — new + updated — Slice 1–6 mapped; feat-001 marked done with evidence
 - `init.sh` — new — Git Bash verification script
 - `init.ps1` — new — PowerShell verification script
-- `progress.md` — new — this file
+- `progress.md` — new + updated — this file
+- `packages/core/src/graphics/types.ts` — modified — extended `GraphicType`; added `GeneratedClip` and friends for feat-001
 
 ## Evidence of Completion (feat-000 / Slice 0)
 
