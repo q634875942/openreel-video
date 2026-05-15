@@ -3,7 +3,7 @@
 ## Current State
 
 **Last Updated:** 2026-05-16
-**Active Feature:** feat-002 done; feat-003 (Slice 1.3 — Sandbox execution layer) is next
+**Active Feature:** Slice 1 complete (feat-001, feat-002, feat-003 all done); feat-004 (Slice 2.1 — AIProvider abstraction) is next
 **Dev server:** stopped
 
 ## Status
@@ -19,19 +19,20 @@
 - [x] Harness scaffolded: AGENTS.md, CLAUDE.md, feature_list.json, init.sh, init.ps1, progress.md
 - [x] **feat-001 (Slice 1.1) — GeneratedClip type definition**: extended `GraphicType` union with `"generated"`; added `GeneratedClip`, `GeneratedClipPromptMessage`, `GeneratedClipSourceLanguage`, and `DEFAULT_GENERATED_PARAMS_SCHEMA` in `packages/core/src/graphics/types.ts`. Auto-exported via `@openreel/core`. Workspace typecheck clean, core test suite 176/176 passing.
 - [x] **feat-002 (Slice 1.2) — GeneratedClip renderer integration**: added `renderGeneratedClip` to `ThreeJSLayerRenderer` (Three.js path) and `renderGeneratedClipOnly` to `canvas-renderers.ts` (Canvas 2D path), both draw colored rect from `params.color`. Extended `GraphicClipUnion` and added `generated` dispatch branches in `renderShapeClipToCanvas`. Widened narrow type literals in `Preview.tsx`. Added 5 unit tests for `readGeneratedClipColor`. Verified: workspace typecheck clean; `apps/web` tests 125 pass / 1 pre-existing fail unrelated to feat-002 (confirmed via git stash baseline).
+- [x] **feat-003 (Slice 1.3) — Sandbox execution layer**: chose Web Worker + procedural SceneDescription (rect/circle/line/text in normalized 0..1 coords). 6 new files in `apps/web/src/objects/`: `SceneDescription.ts` (protocol types), `sandbox-engine.ts` (pure compile + runFrame, fully unit-testable), `sandbox-protocol.ts` (postMessage wire types), `sandbox-worker.ts` (thin Worker shell), `Sandbox.ts` (main-thread wrapper with init/renderFrame/getLatestScene/dispose, configurable timeouts, requestId multiplexing, Worker factory injection for tests), `index.ts` (barrel). +22 new tests, all green.
 
 ### What's In Progress
 
-- [ ] **feat-003 — Sandbox execution layer**: not yet started. This is where `clip.source` actually gets executed instead of ignored.
+- [ ] **feat-004 — AIProvider abstraction**: not yet started. First step of Slice 2 (multi-provider AI).
 
 ### What's Next
 
-1. Decide sandbox approach: Web Worker + Comlink for full isolation vs `new Function` with vetted globals for simplicity. Lean toward Web Worker for security but evaluate boot/teardown cost
-2. Design message protocol: `{ init(source) }` → `{ renderFrame(params, t) returns ImageData | OffscreenCanvas }`
-3. Decide what API surface the AI code can use: Three.js objects only? Canvas 2D context? Both?
-4. Implement basic sandbox in `apps/web/src/objects/Sandbox.ts`
-5. Wire feat-002's renderers to call sandbox.renderFrame() instead of drawing a hard-coded rectangle
-6. Add a hard-coded "stick figure walking" demo source to exercise the path before feat-006 wires up real AI
+1. Define `AIProvider` interface in `apps/web/src/ai/AIProvider.ts`: generate(req) → AsyncIterable<chunk>, listModels()
+2. Pick JSON Schema as the lowest-common-denominator tool-call format
+3. Decide message shape (system prompt, messages array, tools, stream, temperature)
+4. Implement `apps/web/src/ai/providers/registry.ts` for managing the active provider
+5. Stub one provider end-to-end first (ClaudeProvider is highest quality for code generation) before fanning out to OpenAI/DeepSeek/Compatible
+6. Sandbox integration with the renderers (so a GeneratedClip with real source actually renders the AI shapes) was originally planned for feat-003 but split to a future feat — feat-002's hardcoded `params.color` rect path is still in use. Track this as carry-over work.
 
 ## Blockers / Risks
 
@@ -61,6 +62,14 @@
 - `apps/web/src/components/editor/preview/canvas-renderers.ts` — modified — extended `GraphicClipUnion`, added `renderGeneratedClipOnly`, added `generated` branches in `renderShapeClipToCanvas` dispatch for feat-002
 - `apps/web/src/components/editor/preview/canvas-renderers.test.ts` — modified — added 5 unit tests for `readGeneratedClipColor`
 - `apps/web/src/components/editor/Preview.tsx` — modified — widened narrow `ShapeClip | SVGClip | StickerClip` type literals to include `GeneratedClip` (8 sites)
+- `apps/web/src/objects/SceneDescription.ts` — new — wire protocol types for feat-003
+- `apps/web/src/objects/sandbox-engine.ts` — new — pure compile + runFrame logic
+- `apps/web/src/objects/sandbox-protocol.ts` — new — postMessage message types
+- `apps/web/src/objects/sandbox-worker.ts` — new — Worker shell
+- `apps/web/src/objects/Sandbox.ts` — new — main-thread Sandbox wrapper
+- `apps/web/src/objects/index.ts` — new — module barrel
+- `apps/web/src/objects/sandbox-engine.test.ts` — new — 14 unit tests for compile + runFrame
+- `apps/web/src/objects/Sandbox.test.ts` — new — 8 unit tests using FakeWorker
 
 ## Evidence of Completion (feat-000 / Slice 0)
 
