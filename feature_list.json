@@ -1,0 +1,101 @@
+{
+  "project": "openreel-video fork — AI-generated objects for self-media video creation",
+  "upstream": "https://github.com/Augani/openreel-video",
+  "fork": "https://github.com/q634875942/openreel-video",
+  "features": [
+    {
+      "id": "feat-000",
+      "name": "Slice 0 — Repo bootstrap and architecture exploration",
+      "description": "Fork upstream, set up dev environment (Node, pnpm, Vite), map monorepo structure, locate Three.js integration point, identify GeneratedClip plug-in surface.",
+      "dependencies": [],
+      "status": "done",
+      "evidence": "See SLICE0_FINDINGS.md. Dev server verified at http://localhost:5173 (HTTP 200). Committed in c55a542."
+    },
+    {
+      "id": "feat-001",
+      "name": "Slice 1.1 — GeneratedClip type definition",
+      "description": "Add `GeneratedClip` to `packages/core/src/graphics/types.ts` mirroring ShapeClip/SVGClip shape. Fields: source (TS string), sourceLanguage, providerId, promptHistory, paramsSchema, params, transform, keyframes, blendMode, blendOpacity. Re-export from @openreel/core.",
+      "dependencies": ["feat-000"],
+      "status": "not-started",
+      "evidence": ""
+    },
+    {
+      "id": "feat-002",
+      "name": "Slice 1.2 — GeneratedClip renderer integration",
+      "description": "Extend `ThreeJSLayerRenderer` with `renderGeneratedClip(clip, time)` or create sibling `GeneratedClipRenderer` sharing the same Scene/Camera. Hook into `canvas-renderers.ts` dispatch. For Slice 1 MVP, support a hard-coded test clip (no AI yet) that draws something visible.",
+      "dependencies": ["feat-001"],
+      "status": "not-started",
+      "evidence": ""
+    },
+    {
+      "id": "feat-003",
+      "name": "Slice 1.3 — Sandbox execution layer",
+      "description": "Create `apps/web/src/objects/Sandbox.ts`. Execute generated TS source inside a Web Worker (or vetted `new Function` with restricted globals — decide during implementation). Expose only Three.js + math primitives, deny fetch/storage/window. Define message protocol: { init(source) } → { renderFrame(params, t) }.",
+      "dependencies": ["feat-001"],
+      "status": "not-started",
+      "evidence": ""
+    },
+    {
+      "id": "feat-004",
+      "name": "Slice 2.1 — AIProvider abstraction",
+      "description": "Define `AIProvider` interface in `apps/web/src/ai/AIProvider.ts`. Methods: generate(request) → AsyncIterable<chunk>, listModels(). Common request shape (system/messages/tools/stream/temperature). Tools use JSON Schema as the lowest common denominator across providers.",
+      "dependencies": ["feat-000"],
+      "status": "not-started",
+      "evidence": ""
+    },
+    {
+      "id": "feat-005",
+      "name": "Slice 2.2 — Provider implementations (Claude / OpenAI / DeepSeek / Compatible)",
+      "description": "Implement ClaudeProvider (anthropic SDK + prompt caching), OpenAIProvider (openai SDK), DeepSeekProvider (openai SDK + baseURL override), CompatibleProvider (user supplies baseURL/key/model). Provider registry + persistence of current selection in IndexedDB. Errors are surfaced — no silent fallback.",
+      "dependencies": ["feat-004"],
+      "status": "not-started",
+      "evidence": ""
+    },
+    {
+      "id": "feat-006",
+      "name": "Slice 2.3 — AI Panel UI",
+      "description": "Create `apps/web/src/components/AIPanel/`. Provider+model dropdown, prompt input, generate button, streaming output area, 'Fix with AI' on render error. Settings entry for API keys (stored encrypted in IndexedDB via `keyStore.ts`). Wire createGeneratedClip into project store.",
+      "dependencies": ["feat-002", "feat-005"],
+      "status": "not-started",
+      "evidence": ""
+    },
+    {
+      "id": "feat-007",
+      "name": "Slice 3 — Visual parameter editing (JsonSchema → form)",
+      "description": "Component `apps/web/src/components/ParamPanel/` reads a GeneratedClip's `paramsSchema` and renders inputs (color picker, number slider, vector, select, text). Param changes flow back to clip without re-running AI. Params support keyframe binding via the existing AnimationEngine.",
+      "dependencies": ["feat-006"],
+      "status": "not-started",
+      "evidence": ""
+    },
+    {
+      "id": "feat-008",
+      "name": "Slice 4 — Monaco source editor",
+      "description": "Component `apps/web/src/components/SourceEditor/` opens on double-click of a GeneratedClip and shows its `source`. Save re-mounts the clip's sandbox with new source. 'Ask AI to refactor' button: send selection + instruction to provider, replace selection with response.",
+      "dependencies": ["feat-006"],
+      "status": "not-started",
+      "evidence": ""
+    },
+    {
+      "id": "feat-009",
+      "name": "Slice 5 — Action/state system",
+      "description": "Allow each GeneratedClip to define named states (idle/walk/jump etc.) as parameter presets. Timeline can place 'state change' markers that trigger smooth transitions of params between states. Built on top of existing keyframe machinery, no new core engine.",
+      "dependencies": ["feat-007"],
+      "status": "not-started",
+      "evidence": ""
+    },
+    {
+      "id": "feat-010",
+      "name": "Slice 6 — Object template library + E2E verification",
+      "description": "Bundled object templates (stick figure, geometric shapes, text bubble, emoji character). User can pick a template and ask AI to mutate it. End-to-end smoke: prompt → generate → add to timeline → tweak params → export mp4, with playback matching preview at 1080p.",
+      "dependencies": ["feat-008", "feat-009"],
+      "status": "not-started",
+      "evidence": ""
+    }
+  ],
+  "policies": {
+    "one_feature_at_a_time": true,
+    "verification_required_for_done": true,
+    "additive_only": "New code lives in src/ai/, src/objects/, src/components/AIPanel|ParamPanel|SourceEditor/. Existing openreel files only modified if the feature strictly requires it.",
+    "rebase_target": "upstream/main"
+  }
+}
