@@ -11,6 +11,8 @@ import type {
   ViewBox,
   ArrowProperties,
   CreateShapeParams,
+  CreateGeneratedParams,
+  GeneratedClip,
   SVGImportResult,
   GraphicRenderResult,
   SVGColorStyle,
@@ -18,7 +20,11 @@ import type {
   GraphicAnimationType,
   EmphasisAnimation,
 } from "./types";
-import { DEFAULT_SHAPE_STYLE, DEFAULT_GRAPHIC_TRANSFORM } from "./types";
+import {
+  DEFAULT_SHAPE_STYLE,
+  DEFAULT_GRAPHIC_TRANSFORM,
+  DEFAULT_GENERATED_PARAMS_SCHEMA,
+} from "./types";
 import type { Transform, Keyframe, ClipMetadata } from "../types/timeline";
 import { AnimationEngine } from "../video/animation-engine";
 
@@ -53,6 +59,7 @@ export class GraphicsEngine {
   private shapeClips: Map<string, ShapeClip> = new Map();
   private svgClips: Map<string, SVGClip> = new Map();
   private stickerClips: Map<string, StickerClip> = new Map();
+  private generatedClips: Map<string, GeneratedClip> = new Map();
 
   /**
    * Creates a new GraphicsEngine instance.
@@ -1966,6 +1973,120 @@ export class GraphicsEngine {
     return updatedClip;
   }
 
+  // === GeneratedClip (feat-007) ===========================================
+  // Mirrors the shape/svg/sticker CRUD shape. The actual rendering happens
+  // in apps/web via Sandbox -> SceneDescription -> renderScene, so this
+  // engine only owns clip metadata, never executes the source.
+
+  createGenerated(
+    params: CreateGeneratedParams,
+    trackId: string,
+    startTime: number,
+    duration: number,
+  ): GeneratedClip {
+    const id = params.id || this.generateId();
+    const clip: GeneratedClip = {
+      id,
+      trackId,
+      startTime,
+      duration,
+      type: "generated",
+      transform: { ...DEFAULT_GRAPHIC_TRANSFORM },
+      keyframes: [],
+      source: params.source,
+      sourceLanguage: params.sourceLanguage ?? "typescript",
+      providerId: params.providerId,
+      model: params.model,
+      promptHistory: params.promptHistory ?? [],
+      paramsSchema: params.paramsSchema ?? DEFAULT_GENERATED_PARAMS_SCHEMA,
+      params: params.params ?? {},
+      metadata: params.metadata,
+    };
+
+    this.generatedClips.set(id, clip);
+    return clip;
+  }
+
+  getGeneratedClip(id: string): GeneratedClip | undefined {
+    return this.generatedClips.get(id);
+  }
+
+  getAllGeneratedClips(): GeneratedClip[] {
+    return Array.from(this.generatedClips.values());
+  }
+
+  getGeneratedClipsForTrack(trackId: string): GeneratedClip[] {
+    return Array.from(this.generatedClips.values()).filter(
+      (clip) => clip.trackId === trackId,
+    );
+  }
+
+  deleteGeneratedClip(id: string): boolean {
+    return this.generatedClips.delete(id);
+  }
+
+  updateGeneratedClipParams(
+    id: string,
+    params: Record<string, unknown>,
+  ): GeneratedClip | undefined {
+    const existing = this.generatedClips.get(id);
+    if (!existing) {
+      console.warn(`[GraphicsEngine] Generated clip not found: ${id}`);
+      return undefined;
+    }
+    const updated: GeneratedClip = { ...existing, params };
+    this.generatedClips.set(id, updated);
+    return updated;
+  }
+
+  updateGeneratedClipSource(
+    id: string,
+    source: string,
+  ): GeneratedClip | undefined {
+    const existing = this.generatedClips.get(id);
+    if (!existing) {
+      console.warn(`[GraphicsEngine] Generated clip not found: ${id}`);
+      return undefined;
+    }
+    const updated: GeneratedClip = { ...existing, source };
+    this.generatedClips.set(id, updated);
+    return updated;
+  }
+
+  updateGeneratedClip(
+    id: string,
+    updates: {
+      startTime?: number;
+      duration?: number;
+      transform?: Partial<Transform>;
+      keyframes?: Keyframe[];
+    },
+  ): GeneratedClip | undefined {
+    const existing = this.generatedClips.get(id);
+    if (!existing) {
+      console.warn(`[GraphicsEngine] Generated clip not found: ${id}`);
+      return undefined;
+    }
+    const updated: GeneratedClip = {
+      ...existing,
+      startTime: updates.startTime ?? existing.startTime,
+      duration: updates.duration ?? existing.duration,
+      transform: updates.transform
+        ? { ...existing.transform, ...updates.transform }
+        : existing.transform,
+      keyframes: updates.keyframes ?? existing.keyframes,
+    };
+    this.generatedClips.set(id, updated);
+    return updated;
+  }
+
+  loadGeneratedClips(clips: GeneratedClip[]): void {
+    this.generatedClips.clear();
+    for (const clip of clips) {
+      this.generatedClips.set(clip.id, clip);
+    }
+  }
+
   /**
    * Clears all cached data and clips from the engine.
    * Use when resetting the engine or freeing memory.
@@ -1976,6 +2097,7 @@ export class GraphicsEngine {
     this.shapeClips.clear();
     this.svgClips.clear();
     this.stickerClips.clear();
+    this.generatedClips.clear();
     this.animationEngine.clearCache();
   }
 

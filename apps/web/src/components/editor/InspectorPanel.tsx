@@ -51,6 +51,7 @@ import {
   AlignmentSection,
   BehindSubjectSection,
 } from "./inspector";
+import { GeneratedClipSection } from "../ParamPanel";
 import { OPENREEL_TRANSCRIBE_URL } from "../../config/api-endpoints";
 import { AutoEditPanel } from "./panels/AutoEditPanel";
 import { HighlightExtractorPanel } from "./panels/HighlightExtractorPanel";
@@ -345,6 +346,26 @@ export const InspectorPanel: React.FC = () => {
         effects: [],
         imageUrl: stickerClip.imageUrl,
         trackId: stickerClip.trackId,
+      };
+    }
+    const generatedClip = graphicsEngine?.getGeneratedClip(clipId);
+    if (generatedClip) {
+      return {
+        id: generatedClip.id,
+        mediaId: `generated-${generatedClip.id}`,
+        startTime: generatedClip.startTime,
+        duration: generatedClip.duration,
+        inPoint: 0,
+        outPoint: generatedClip.duration,
+        transform: generatedClip.transform || {
+          position: { x: 0, y: 0 },
+          scale: { x: 1, y: 1 },
+          rotation: 0,
+          anchor: { x: 0.5, y: 0.5 },
+          opacity: 1,
+        },
+        effects: [],
+        trackId: generatedClip.trackId,
       };
     }
     return null;
@@ -705,6 +726,10 @@ export const InspectorPanel: React.FC = () => {
       return "sticker";
     }
 
+    if (selectedClip.mediaId.startsWith("generated-")) {
+      return "generated";
+    }
+
     // Find the track this clip belongs to
     const track = project.timeline.tracks.find((t) =>
       t.clips.some((c) => c.id === selectedClip.id),
@@ -738,6 +763,7 @@ export const InspectorPanel: React.FC = () => {
   const showTextSection = clipType === "text";
   const showShapeSection = clipType === "shape";
   const showSVGSection = clipType === "svg";
+  const showGeneratedSection = clipType === "generated";
   const selectedNoiseReductionEffect = selectedTimelineClip?.audioEffects?.find(
     (effect) => effect.type === "noiseReduction",
   );
@@ -1638,6 +1664,16 @@ export const InspectorPanel: React.FC = () => {
             {showSVGSection && (
               <Section title="SVG Properties">
                 <SVGSection clipId={clipId} />
+              </Section>
+            )}
+
+            {/* Generated Object Section (feat-007) */}
+            {showGeneratedSection && (
+              <Section
+                title="AI Object Parameters"
+                sectionId="generated-clip-params"
+              >
+                <GeneratedClipSection clipId={clipId} />
               </Section>
             )}
 

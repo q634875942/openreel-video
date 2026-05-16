@@ -1,6 +1,11 @@
 import type { Timeline } from "./timeline";
 import type { TextClip } from "../text/types";
-import type { ShapeClip, SVGClip, StickerClip } from "../graphics/types";
+import type {
+  ShapeClip,
+  SVGClip,
+  StickerClip,
+  GeneratedClip,
+} from "../graphics/types";
 
 export interface ProjectSettings {
   readonly width: number;
@@ -22,6 +27,8 @@ export interface Project {
   readonly shapeClips?: ShapeClip[];
   readonly svgClips?: SVGClip[];
   readonly stickerClips?: StickerClip[];
+  // feat-007 — AI-generated clips persisted alongside the other graphics.
+  readonly generatedClips?: GeneratedClip[];
 }
 
 export interface MediaLibrary {

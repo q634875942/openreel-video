@@ -20,6 +20,7 @@ import type {
   ShapeStyle,
   SVGClip,
   StickerClip,
+  GeneratedClip,
   PhotoProject,
   CreateLayerOptions,
   PhotoBlendMode,
@@ -62,7 +63,9 @@ import {
   type EditingTemplateApplicationState,
   type ClipHistoryEntry,
   type EditingTemplateHistoryEntry,
+  type CreateGeneratedClipInput,
 } from "./project/index";
+import { SandboxRegistry } from "../objects/SandboxRegistry";
 import {
   saveMediaBlob,
   deleteMediaBlob,
@@ -326,7 +329,7 @@ export interface ProjectState {
   updateShapeTransform: (
     clipId: string,
     transform: Partial<Transform>,
-  ) => ShapeClip | SVGClip | StickerClip | null;
+  ) => ShapeClip | SVGClip | StickerClip | GeneratedClip | null;
   importSVG: (
     svgContent: string,
     trackId: string,
@@ -353,6 +356,21 @@ export interface ProjectState {
   getStickerClip: (clipId: string) => StickerClip | undefined;
   deleteStickerClip: (clipId: string) => boolean;
   deleteTextClip: (clipId: string) => boolean;
+
+  // GeneratedClip actions (feat-007)
+  createGeneratedClip: (
+    input: CreateGeneratedClipInput,
+  ) => GeneratedClip | null;
+  getGeneratedClip: (clipId: string) => GeneratedClip | undefined;
+  updateGeneratedClipParams: (
+    clipId: string,
+    params: Record<string, unknown>,
+  ) => GeneratedClip | null;
+  updateGeneratedClipSource: (
+    clipId: string,
+    source: string,
+  ) => GeneratedClip | null;
+  deleteGeneratedClip: (clipId: string) => boolean;
 
   // Photo editing actions
   createPhotoProject: (
@@ -722,6 +740,7 @@ export const useProjectStore = create<ProjectState>()(
           ...graphicsEngine.getAllShapeClips(),
           ...graphicsEngine.getAllSVGClips(),
           ...graphicsEngine.getAllStickerClips(),
+          ...graphicsEngine.getAllGeneratedClips(),
         ].some((clip) => clip.trackId === trackId);
       }
 
@@ -1256,6 +1275,7 @@ export const useProjectStore = create<ProjectState>()(
         ...graphicsEngine.getAllShapeClips(),
         ...graphicsEngine.getAllSVGClips(),
         ...graphicsEngine.getAllStickerClips(),
+        ...graphicsEngine.getAllGeneratedClips(),
       ].some((clip) => clip.metadata?.templateSource?.applicationId === applicationId);
     };
 
@@ -1329,6 +1349,12 @@ export const useProjectStore = create<ProjectState>()(
         for (const stickerClip of graphicsEngine.getAllStickerClips()) {
           if (stickerClip.metadata?.templateSource?.applicationId === applicationId) {
             graphicsEngine.deleteStickerClip(stickerClip.id);
+          }
+        }
+
+        for (const generatedClip of graphicsEngine.getAllGeneratedClips()) {
+          if (generatedClip.metadata?.templateSource?.applicationId === applicationId) {
+            graphicsEngine.deleteGeneratedClip(generatedClip.id);
           }
         }
       }
@@ -3654,7 +3680,8 @@ export const useProjectStore = create<ProjectState>()(
                 const shapeClips = graphicsEngine?.getAllShapeClips() || [];
                 const svgClips = graphicsEngine?.getAllSVGClips() || [];
                 const stickerClips = graphicsEngine?.getAllStickerClips() || [];
-                trackHasClips = [...shapeClips, ...svgClips, ...stickerClips].some(c => c.trackId === trackId);
+                const generatedClips = graphicsEngine?.getAllGeneratedClips() || [];
+                trackHasClips = [...shapeClips, ...svgClips, ...stickerClips, ...generatedClips].some(c => c.trackId === trackId);
               } else if (track.type === "video" || track.type === "audio" || track.type === "image") {
                 // For video/audio/image tracks, check clips array directly
                 trackHasClips = track.clips.length > 0;
@@ -3922,6 +3949,7 @@ export const useProjectStore = create<ProjectState>()(
             shapeClips: graphicsEngine?.getAllShapeClips() || [],
             svgClips: graphicsEngine?.getAllSVGClips() || [],
             stickerClips: graphicsEngine?.getAllStickerClips() || [],
+            generatedClips: graphicsEngine?.getAllGeneratedClips() || [],
           };
         });
 
@@ -3977,6 +4005,9 @@ export const useProjectStore = create<ProjectState>()(
             if (recoveredProject.stickerClips) {
               graphicsEngine.loadStickerClips(recoveredProject.stickerClips);
             }
+            if (recoveredProject.generatedClips) {
+              graphicsEngine.loadGeneratedClips(recoveredProject.generatedClips);
+            }
           }
 
           const newHistory = new ActionHistory();
@@ -4009,6 +4040,7 @@ export const useProjectStore = create<ProjectState>()(
           shapeClips: graphicsEngine?.getAllShapeClips() || [],
           svgClips: graphicsEngine?.getAllSVGClips() || [],
           stickerClips: graphicsEngine?.getAllStickerClips() || [],
+          generatedClips: graphicsEngine?.getAllGeneratedClips() || [],
         };
         await autoSaveManager.forceSave(fullProject);
       },
@@ -4024,6 +4056,7 @@ export const useProjectStore = create<ProjectState>()(
           shapeClips: graphicsEngine?.getAllShapeClips() || [],
           svgClips: graphicsEngine?.getAllSVGClips() || [],
           stickerClips: graphicsEngine?.getAllStickerClips() || [],
+          generatedClips: graphicsEngine?.getAllGeneratedClips() || [],
         };
       },
 
@@ -4775,6 +4808,21 @@ export const useProjectStore = create<ProjectState>()(
           return updatedClip || null;
         }
 
+        const generatedClip = graphicsEngine.getGeneratedClip(clipId);
+        if (generatedClip) {
+          const updatedClip = graphicsEngine.updateGeneratedClip(clipId, {
+            transform,
+          });
+          const { project } = get();
+          set({
+            project: {
+              ...project,
+              modifiedAt: Date.now(),
+            },
+          });
+          return updatedClip || null;
+        }
+
         console.error(`Graphic clip ${clipId} not found`);
         return null;
       },
@@ -4839,6 +4887,126 @@ export const useProjectStore = create<ProjectState>()(
           console.error("Failed to import SVG:", error);
           return null;
         }
+      },
+
+      // === GeneratedClip actions (feat-007) ===============================
+
+      createGeneratedClip: (input: CreateGeneratedClipInput) => {
+        const graphicsEngine = useEngineStore.getState().getGraphicsEngine();
+        if (!graphicsEngine) {
+          console.error("[ProjectStore] GraphicsEngine not initialized");
+          return null;
+        }
+
+        const { project } = get();
+        const track = project.timeline.tracks.find(
+          (t) => t.id === input.trackId,
+        );
+        if (!track) {
+          console.error(`[ProjectStore] Track ${input.trackId} not found`);
+          return null;
+        }
+
+        const clip = graphicsEngine.createGenerated(
+          {
+            source: input.source,
+            providerId: input.providerId,
+            model: input.model,
+            paramsSchema: input.paramsSchema,
+            params: input.params,
+            promptHistory: input.promptHistory,
+          },
+          input.trackId,
+          input.startTime,
+          input.duration ?? 5,
+        );
+
+        const { clipUndoStack } = get();
+        const historyEntry: ClipHistoryEntry = {
+          type: "generated",
+          timestamp: Date.now(),
+          clipId: clip.id,
+          trackId: input.trackId,
+          clipData: { ...clip },
+        };
+
+        set({
+          project: {
+            ...project,
+            modifiedAt: Date.now(),
+          },
+          clipUndoStack: [...clipUndoStack, historyEntry],
+          clipRedoStack: [],
+        });
+
+        return clip;
+      },
+
+      getGeneratedClip: (clipId: string) => {
+        const graphicsEngine = useEngineStore.getState().getGraphicsEngine();
+        if (!graphicsEngine) return undefined;
+        return graphicsEngine.getGeneratedClip(clipId);
+      },
+
+      updateGeneratedClipParams: (
+        clipId: string,
+        params: Record<string, unknown>,
+      ) => {
+        const graphicsEngine = useEngineStore.getState().getGraphicsEngine();
+        if (!graphicsEngine) {
+          console.error("[ProjectStore] GraphicsEngine not initialized");
+          return null;
+        }
+        const updated = graphicsEngine.updateGeneratedClipParams(clipId, params);
+        if (!updated) return null;
+        const { project } = get();
+        set({
+          project: {
+            ...project,
+            modifiedAt: Date.now(),
+          },
+        });
+        return updated;
+      },
+
+      updateGeneratedClipSource: (clipId: string, source: string) => {
+        const graphicsEngine = useEngineStore.getState().getGraphicsEngine();
+        if (!graphicsEngine) {
+          console.error("[ProjectStore] GraphicsEngine not initialized");
+          return null;
+        }
+        const updated = graphicsEngine.updateGeneratedClipSource(clipId, source);
+        if (!updated) return null;
+        // Source changed → drop the cached Sandbox so the next render
+        // ensure() rebuilds against the new code.
+        SandboxRegistry.dispose(clipId);
+        const { project } = get();
+        set({
+          project: {
+            ...project,
+            modifiedAt: Date.now(),
+          },
+        });
+        return updated;
+      },
+
+      deleteGeneratedClip: (clipId: string) => {
+        const graphicsEngine = useEngineStore.getState().getGraphicsEngine();
+        if (!graphicsEngine) return false;
+        // Reclaim the Worker BEFORE removing the clip — otherwise nothing
+        // else holds a reference to it.
+        SandboxRegistry.dispose(clipId);
+        const deleted = graphicsEngine.deleteGeneratedClip(clipId);
+        if (deleted) {
+          const { project } = get();
+          set({
+            project: {
+              ...project,
+              modifiedAt: Date.now(),
+            },
+          });
+        }
+        return deleted;
       },
 
       /**

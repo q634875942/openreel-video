@@ -12,10 +12,12 @@ import {
   Shapes,
   FileCode,
   Smile,
+  Sparkles,
 } from "lucide-react";
 import { Input, ScrollArea } from "@openreel/ui";
 import { useProjectStore } from "../../../stores/project-store";
 import type { HistorySnapshot } from "@openreel/core";
+import type { ClipHistoryEntryType } from "../../../stores/project";
 
 interface DisplayEntry {
   id: string;
@@ -23,7 +25,7 @@ interface DisplayEntry {
   timestamp: number;
   isCurrent: boolean;
   isClipEntry: boolean;
-  clipType?: "shape" | "text" | "svg" | "sticker";
+  clipType?: ClipHistoryEntryType;
   groupId?: string;
 }
 
@@ -35,12 +37,13 @@ export const HistoryPanel: React.FC = () => {
   const [newSnapshotName, setNewSnapshotName] = useState("");
   const [isCreatingSnapshot, setIsCreatingSnapshot] = useState(false);
 
-  const getClipDescription = (type: "shape" | "text" | "svg" | "sticker"): string => {
+  const getClipDescription = (type: ClipHistoryEntryType): string => {
     switch (type) {
       case "text": return "Create text clip";
       case "shape": return "Create shape";
       case "svg": return "Import SVG";
       case "sticker": return "Add sticker";
+      case "generated": return "Add generated object";
       default: return "Create clip";
     }
   };
@@ -114,12 +117,13 @@ export const HistoryPanel: React.FC = () => {
   const undoCount = actionHistory.getUndoStackSize() + clipUndoStack.length;
   const redoCount = actionHistory.getRedoStackSize() + clipRedoStack.length;
 
-  const getClipIcon = (type?: "shape" | "text" | "svg" | "sticker") => {
+  const getClipIcon = (type?: ClipHistoryEntryType) => {
     switch (type) {
       case "text": return Type;
       case "shape": return Shapes;
       case "svg": return FileCode;
       case "sticker": return Smile;
+      case "generated": return Sparkles;
       default: return History;
     }
   };

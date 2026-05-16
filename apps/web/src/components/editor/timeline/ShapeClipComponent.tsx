@@ -1,6 +1,11 @@
 import React, { useRef, useState, useEffect } from "react";
-import { Shapes, FileCode, Smile } from "lucide-react";
-import type { ShapeClip, SVGClip, StickerClip } from "@openreel/core";
+import { Shapes, FileCode, Smile, Sparkles } from "lucide-react";
+import type {
+  ShapeClip,
+  SVGClip,
+  StickerClip,
+  GeneratedClip,
+} from "@openreel/core";
 import { ContextMenu, ContextMenuTrigger } from "@openreel/ui";
 import { GraphicsClipContextMenu } from "./GraphicsClipContextMenu";
 import { calculateSnap } from "./utils";
@@ -8,7 +13,7 @@ import { useProjectStore } from "../../../stores/project-store";
 import { useTimelineStore } from "../../../stores/timeline-store";
 import { useUIStore } from "../../../stores/ui-store";
 
-type GraphicClipUnion = ShapeClip | SVGClip | StickerClip;
+type GraphicClipUnion = ShapeClip | SVGClip | StickerClip | GeneratedClip;
 
 interface ShapeClipComponentProps {
   shapeClip: GraphicClipUnion;
@@ -161,8 +166,10 @@ export const ShapeClipComponent: React.FC<ShapeClipComponentProps> = ({
 
   const isShape = shapeClip.type === "shape";
   const isSticker = shapeClip.type === "sticker" || shapeClip.type === "emoji";
-  const shapeLabel =
-    isShape && "shapeType" in shapeClip
+  const isGenerated = shapeClip.type === "generated";
+  const shapeLabel = isGenerated
+    ? "AI Object"
+    : isShape && "shapeType" in shapeClip
       ? shapeClip.shapeType.charAt(0).toUpperCase() +
         shapeClip.shapeType.slice(1)
       : isSticker
@@ -170,11 +177,31 @@ export const ShapeClipComponent: React.FC<ShapeClipComponentProps> = ({
           ? "Emoji"
           : "Sticker"
         : "SVG";
-  const IconComponent = isShape ? Shapes : isSticker ? Smile : FileCode;
-  const colorClass = isShape ? "green" : isSticker ? "pink" : "purple";
+  const IconComponent = isGenerated
+    ? Sparkles
+    : isShape
+      ? Shapes
+      : isSticker
+        ? Smile
+        : FileCode;
+  const colorClass = isGenerated
+    ? "blue"
+    : isShape
+      ? "green"
+      : isSticker
+        ? "pink"
+        : "purple";
 
   const isInteracting = isDragging || isTrimming;
-  const clipType = isShape ? "shape" : isSticker ? (shapeClip.type === "emoji" ? "emoji" : "sticker") : "svg";
+  const clipType = isGenerated
+    ? "generated"
+    : isShape
+      ? "shape"
+      : isSticker
+        ? shapeClip.type === "emoji"
+          ? "emoji"
+          : "sticker"
+        : "svg";
 
   return (
     <ContextMenu>

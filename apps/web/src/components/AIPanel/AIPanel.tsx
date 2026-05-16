@@ -2,11 +2,9 @@
 // natural-language prompt, pick a provider+model, and watch the AI
 // generate a sandboxed renderable object in real time.
 //
-// Scope of this feat-006 MVP:
-//   - Standalone preview canvas inside the panel.
-//   - NOT integrated into openreel's timeline / project store yet — that
-//     wiring is the next feat. The point of this milestone is to prove
-//     prompt -> AI -> sandbox -> render works end-to-end.
+// feat-006 shipped the standalone preview loop.
+// feat-007 wires "Add to timeline" so the latest successful generation
+// becomes a real GeneratedClip on the project's first graphics track.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AIProvider } from "../../ai/AIProvider";
@@ -16,7 +14,18 @@ import type { ModelInfo } from "../../ai/types";
 import { Sandbox } from "../../objects/Sandbox";
 import type { SceneDescription } from "../../objects/SceneDescription";
 import { EMPTY_SCENE } from "../../objects/SceneDescription";
-import { renderScene } from "./renderScene";
+import { renderScene } from "../../objects/renderScene";
+import { useProjectStore } from "../../stores/project-store";
+import { useTimelineStore } from "../../stores/timeline-store";
+
+interface PendingGeneration {
+  readonly name: string;
+  readonly source: string;
+  readonly paramsSchema: Record<string, unknown>;
+  readonly defaultParams: Record<string, unknown>;
+  readonly providerId: string;
+  readonly model: string;
+}
 
 interface Props {
   readonly open: boolean;
@@ -59,6 +68,11 @@ export function AIPanel({ open, onClose }: Props) {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [generatedName, setGeneratedName] = useState<string | null>(null);
   const [generatedSource, setGeneratedSource] = useState<string | null>(null);
+  // Holds the most recent successful generation so the Add-to-timeline
+  // button can commit it without re-running the AI.
+  const [pending, setPending] = useState<PendingGeneration | null>(null);
+  const [committedClipId, setCommittedClipId] = useState<string | null>(null);
+  const [commitError, setCommitError] = useState<string | null>(null);
 
   // Sandbox + animation loop.
   const sandboxRef = useRef<Sandbox | null>(null);
@@ -132,6 +146,8 @@ export function AIPanel({ open, onClose }: Props) {
     setGenerating(true);
     setStreamedText("");
     setErrorMessage(null);
+    setCommittedClipId(null);
+    setCommitError(null);
 
     teardownSandbox();
 
@@ -152,6 +168,14 @@ export function AIPanel({ open, onClose }: Props) {
 
       setGeneratedName(result.name);
       setGeneratedSource(result.source);
+      setPending({
+        name: result.name,
+        source: result.source,
+        paramsSchema: result.paramsSchema,
+        defaultParams: result.defaultParams,
+        providerId: provider.info.id,
+        model: modelId,
+      });
       startAnimation(result.defaultParams);
     } catch (err) {
       const message =
@@ -161,11 +185,47 @@ export function AIPanel({ open, onClose }: Props) {
             ? err.message
             : String(err);
       setErrorMessage(message);
+      setPending(null);
       teardownSandbox();
     } finally {
       setGenerating(false);
     }
   }, [provider, modelId, prompt, startAnimation, teardownSandbox]);
+
+  // feat-007: commit the most recent generation as a real GeneratedClip
+  // on the project's first graphics track. If no graphics track exists
+  // we don't auto-create one — keep that out of this slice.
+  const onAddToTimeline = useCallback(() => {
+    if (!pending) return;
+    setCommitError(null);
+    const projectStore = useProjectStore.getState();
+    const timelineStore = useTimelineStore.getState();
+    const graphicsTrack = projectStore.project.timeline.tracks.find(
+      (t) => t.type === "graphics",
+    );
+    if (!graphicsTrack) {
+      setCommitError(
+        "Add a graphics track to the timeline first, then click Add to timeline again.",
+      );
+      return;
+    }
+    const clip = projectStore.createGeneratedClip({
+      trackId: graphicsTrack.id,
+      startTime: timelineStore.playheadPosition,
+      duration: 5,
+      source: pending.source,
+      providerId: pending.providerId,
+      model: pending.model,
+      paramsSchema: pending.paramsSchema,
+      params: pending.defaultParams,
+      promptHistory: [{ role: "user", content: prompt.trim() }],
+    });
+    if (!clip) {
+      setCommitError("Failed to create clip — see console for details.");
+      return;
+    }
+    setCommittedClipId(clip.id);
+  }, [pending, prompt]);
 
   if (!open) return null;
 
@@ -177,7 +237,7 @@ export function AIPanel({ open, onClose }: Props) {
         aria-label="AI Object Generator"
       >
         <header className="flex items-center justify-between px-4 py-3 border-b border-white/10">
-          <h2 className="text-sm font-semibold">AI Object Generator (feat-006 MVP)</h2>
+          <h2 className="text-sm font-semibold">AI Object Generator</h2>
           <button
             onClick={onClose}
             className="text-white/60 hover:text-white text-sm"
@@ -273,6 +333,28 @@ export function AIPanel({ open, onClose }: Props) {
               style={{ aspectRatio: `${CANVAS_W} / ${CANVAS_H}` }}
             />
           </div>
+
+          <button
+            onClick={onAddToTimeline}
+            disabled={!pending || generating}
+            className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:bg-neutral-700 disabled:text-white/40 text-white font-medium rounded px-3 py-2"
+          >
+            Add to timeline
+          </button>
+
+          {commitError && (
+            <div className="rounded bg-yellow-900/40 border border-yellow-700 px-3 py-2 text-yellow-200 text-xs whitespace-pre-wrap">
+              {commitError}
+            </div>
+          )}
+
+          {committedClipId && (
+            <div className="rounded bg-emerald-900/40 border border-emerald-700 px-3 py-2 text-emerald-200 text-xs">
+              Added to timeline as{" "}
+              <code className="text-emerald-100">{committedClipId}</code>. Keep
+              iterating or close the panel.
+            </div>
+          )}
 
           {streamedText && (
             <details className="text-xs text-white/50">

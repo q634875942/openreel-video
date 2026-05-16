@@ -1,6 +1,10 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
 import { GraphicsEngine } from "./graphics-engine";
-import type { EmphasisAnimation } from "./types";
+import type { EmphasisAnimation, GeneratedClip } from "./types";
+import {
+  DEFAULT_GENERATED_PARAMS_SCHEMA,
+  DEFAULT_GRAPHIC_TRANSFORM,
+} from "./types";
 import type { EasingType } from "../types/timeline";
 
 class MockCanvasContext {
@@ -171,6 +175,161 @@ describe("GraphicsEngine", () => {
     it("should return false when deleting non-existent clip", () => {
       const result = engine.deleteShapeClip("non-existent");
       expect(result).toBe(false);
+    });
+  });
+
+  describe("generated clip creation and management (feat-007)", () => {
+    const baseParams = {
+      source: "({ frame() { return { shapes: [] }; } })",
+      providerId: "deepseek",
+      model: "deepseek-v4-flash",
+    };
+
+    it("should create a generated clip with sane defaults", () => {
+      const clip = engine.createGenerated(baseParams, "track-1", 2, 5);
+
+      expect(clip.id).toBeDefined();
+      expect(clip.type).toBe("generated");
+      expect(clip.trackId).toBe("track-1");
+      expect(clip.startTime).toBe(2);
+      expect(clip.duration).toBe(5);
+      expect(clip.source).toBe(baseParams.source);
+      expect(clip.providerId).toBe("deepseek");
+      expect(clip.model).toBe("deepseek-v4-flash");
+      expect(clip.sourceLanguage).toBe("typescript");
+      expect(clip.promptHistory).toEqual([]);
+      expect(clip.params).toEqual({});
+      expect(clip.paramsSchema).toEqual({
+        type: "object",
+        properties: {},
+        additionalProperties: false,
+      });
+      expect(clip.transform.position).toBeDefined();
+      expect(clip.keyframes).toEqual([]);
+    });
+
+    it("should accept overrides for paramsSchema, params, promptHistory", () => {
+      const schema = {
+        type: "object",
+        properties: { color: { type: "string", format: "color" } },
+      };
+      const clip = engine.createGenerated(
+        {
+          ...baseParams,
+          paramsSchema: schema,
+          params: { color: "#ff0000" },
+          promptHistory: [{ role: "user", content: "make a red ball" }],
+          sourceLanguage: "javascript",
+        },
+        "track-1",
+        0,
+        3,
+      );
+
+      expect(clip.paramsSchema).toBe(schema);
+      expect(clip.params).toEqual({ color: "#ff0000" });
+      expect(clip.promptHistory).toEqual([
+        { role: "user", content: "make a red ball" },
+      ]);
+      expect(clip.sourceLanguage).toBe("javascript");
+    });
+
+    it("should generate unique ids for sequential creates", () => {
+      const a = engine.createGenerated(baseParams, "track-1", 0, 5);
+      const b = engine.createGenerated(baseParams, "track-1", 0, 5);
+      expect(a.id).not.toBe(b.id);
+    });
+
+    it("should retrieve, list, and filter by track", () => {
+      const a = engine.createGenerated(baseParams, "track-1", 0, 5);
+      const b = engine.createGenerated(baseParams, "track-2", 0, 5);
+
+      expect(engine.getGeneratedClip(a.id)?.id).toBe(a.id);
+      expect(engine.getAllGeneratedClips().length).toBe(2);
+      const t1 = engine.getGeneratedClipsForTrack("track-1");
+      expect(t1.length).toBe(1);
+      expect(t1[0].id).toBe(a.id);
+      expect(engine.getGeneratedClipsForTrack("track-2")[0].id).toBe(b.id);
+    });
+
+    it("should delete a generated clip and return false on missing", () => {
+      const clip = engine.createGenerated(baseParams, "track-1", 0, 5);
+      expect(engine.deleteGeneratedClip(clip.id)).toBe(true);
+      expect(engine.getGeneratedClip(clip.id)).toBeUndefined();
+      expect(engine.deleteGeneratedClip("nope")).toBe(false);
+    });
+
+    it("should update params immutably", () => {
+      const clip = engine.createGenerated(
+        { ...baseParams, params: { color: "#fff" } },
+        "track-1",
+        0,
+        5,
+      );
+      const updated = engine.updateGeneratedClipParams(clip.id, {
+        color: "#000",
+        radius: 0.2,
+      });
+
+      expect(updated?.params).toEqual({ color: "#000", radius: 0.2 });
+      expect(clip.params).toEqual({ color: "#fff" });
+      expect(updated).not.toBe(clip);
+    });
+
+    it("should update source via updateGeneratedClipSource", () => {
+      const clip = engine.createGenerated(baseParams, "track-1", 0, 5);
+      const next = "({ frame(t) { return { shapes: [] }; } })";
+      const updated = engine.updateGeneratedClipSource(clip.id, next);
+      expect(updated?.source).toBe(next);
+      expect(engine.getGeneratedClip(clip.id)?.source).toBe(next);
+    });
+
+    it("should update timing/transform/keyframes via updateGeneratedClip", () => {
+      const clip = engine.createGenerated(baseParams, "track-1", 0, 5);
+      const updated = engine.updateGeneratedClip(clip.id, {
+        startTime: 1,
+        duration: 8,
+        transform: { position: { x: 0.25, y: 0.75 } },
+      });
+      expect(updated?.startTime).toBe(1);
+      expect(updated?.duration).toBe(8);
+      expect(updated?.transform.position).toEqual({ x: 0.25, y: 0.75 });
+    });
+
+    it("should return undefined when updating non-existent clip", () => {
+      expect(engine.updateGeneratedClipParams("nope", {})).toBeUndefined();
+      expect(engine.updateGeneratedClipSource("nope", "x")).toBeUndefined();
+      expect(engine.updateGeneratedClip("nope", { duration: 1 })).toBeUndefined();
+    });
+
+    it("loadGeneratedClips replaces existing collection", () => {
+      engine.createGenerated(baseParams, "track-1", 0, 5);
+      const loaded: GeneratedClip = {
+        id: "loaded-1",
+        trackId: "track-1",
+        startTime: 0,
+        duration: 5,
+        type: "generated",
+        transform: { ...DEFAULT_GRAPHIC_TRANSFORM },
+        keyframes: [],
+        source: "src",
+        sourceLanguage: "typescript",
+        providerId: "claude",
+        promptHistory: [],
+        paramsSchema: DEFAULT_GENERATED_PARAMS_SCHEMA,
+        params: {},
+      };
+      engine.loadGeneratedClips([loaded]);
+      const all = engine.getAllGeneratedClips();
+      expect(all.length).toBe(1);
+      expect(all[0].id).toBe("loaded-1");
+    });
+
+    it("clearCache empties generatedClips", () => {
+      engine.createGenerated(baseParams, "track-1", 0, 5);
+      expect(engine.getAllGeneratedClips().length).toBe(1);
+      engine.clearCache();
+      expect(engine.getAllGeneratedClips().length).toBe(0);
     });
   });
 

@@ -69,6 +69,7 @@ export const Timeline: React.FC = () => {
     reorderTrack,
     deleteShapeClip,
     deleteSVGClip,
+    deleteGeneratedClip,
     deleteTextClip,
     removeMarker,
     updateMarker,
@@ -122,7 +123,8 @@ export const Timeline: React.FC = () => {
     const shapes = graphicsEngine?.getAllShapeClips() ?? [];
     const svgs = graphicsEngine?.getAllSVGClips() ?? [];
     const stickers = graphicsEngine?.getAllStickerClips() ?? [];
-    return [...shapes, ...svgs, ...stickers];
+    const generated = graphicsEngine?.getAllGeneratedClips() ?? [];
+    return [...shapes, ...svgs, ...stickers, ...generated];
   }, [graphicsEngine, project.modifiedAt]);
 
   const getShapeClipsForTrack = useCallback(
@@ -348,6 +350,8 @@ export const Timeline: React.FC = () => {
       if (graphicClip) {
         if (graphicClip.type === "svg") {
           deleteSVGClip(id);
+        } else if (graphicClip.type === "generated") {
+          deleteGeneratedClip(id);
         } else {
           deleteShapeClip(id);
         }
@@ -366,6 +370,7 @@ export const Timeline: React.FC = () => {
     deleteTextClip,
     deleteShapeClip,
     deleteSVGClip,
+    deleteGeneratedClip,
   ]);
 
   const handleBackgroundClick = useCallback(() => {
@@ -507,6 +512,8 @@ export const Timeline: React.FC = () => {
           graphicsEngine.updateStickerClip(clipId, { startTime: newStartTime });
         } else if (graphicClip.type === "svg") {
           graphicsEngine.updateSVGClip(clipId, { startTime: newStartTime });
+        } else if (graphicClip.type === "generated") {
+          graphicsEngine.updateGeneratedClip(clipId, { startTime: newStartTime });
         } else {
           graphicsEngine.updateShapeClip(clipId, { startTime: newStartTime });
         }
@@ -627,6 +634,8 @@ export const Timeline: React.FC = () => {
         graphicsEngine.updateStickerClip(clipId, updates);
       } else if (graphicClip.type === "svg") {
         graphicsEngine.updateSVGClip(clipId, updates);
+      } else if (graphicClip.type === "generated") {
+        graphicsEngine.updateGeneratedClip(clipId, updates);
       } else {
         graphicsEngine.updateShapeClip(clipId, updates);
       }

@@ -4,8 +4,15 @@ import {
   Trash2,
   Shapes,
   Type,
+  Sparkles,
 } from "lucide-react";
-import type { ShapeClip, SVGClip, StickerClip, TextClip } from "@openreel/core";
+import type {
+  ShapeClip,
+  SVGClip,
+  StickerClip,
+  TextClip,
+  GeneratedClip,
+} from "@openreel/core";
 import { useProjectStore } from "../../../stores/project-store";
 import {
   ContextMenuContent,
@@ -15,11 +22,16 @@ import {
   ContextMenuLabel,
 } from "@openreel/ui";
 
-type GraphicsClipType = ShapeClip | SVGClip | StickerClip | TextClip;
+type GraphicsClipType =
+  | ShapeClip
+  | SVGClip
+  | StickerClip
+  | TextClip
+  | GeneratedClip;
 
 interface GraphicsClipContextMenuProps {
   clip: GraphicsClipType;
-  clipType: "shape" | "svg" | "sticker" | "emoji" | "text";
+  clipType: "shape" | "svg" | "sticker" | "emoji" | "text" | "generated";
   onClose?: () => void;
   onDelete?: () => void;
   onDuplicate?: () => void;
@@ -37,6 +49,7 @@ export const GraphicsClipContextMenu: React.FC<GraphicsClipContextMenuProps> = (
     deleteSVGClip,
     deleteStickerClip,
     deleteTextClip,
+    deleteGeneratedClip,
   } = useProjectStore();
 
   const handleDelete = () => {
@@ -56,6 +69,9 @@ export const GraphicsClipContextMenu: React.FC<GraphicsClipContextMenuProps> = (
           break;
         case "text":
           deleteTextClip(clip.id);
+          break;
+        case "generated":
+          deleteGeneratedClip(clip.id);
           break;
       }
     }
@@ -79,6 +95,8 @@ export const GraphicsClipContextMenu: React.FC<GraphicsClipContextMenuProps> = (
         return "Emoji";
       case "text":
         return "Text";
+      case "generated":
+        return "AI Object";
       default:
         return "Graphics";
     }
@@ -88,6 +106,8 @@ export const GraphicsClipContextMenu: React.FC<GraphicsClipContextMenuProps> = (
     switch (clipType) {
       case "text":
         return <Type className="mr-2 h-3 w-3 text-amber-400" />;
+      case "generated":
+        return <Sparkles className="mr-2 h-3 w-3 text-blue-400" />;
       default:
         return <Shapes className="mr-2 h-3 w-3 text-green-400" />;
     }

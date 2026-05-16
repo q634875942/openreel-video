@@ -18,6 +18,8 @@ import type {
   ShapeStyle,
   SVGClip,
   StickerClip,
+  GeneratedClip,
+  GeneratedClipPromptMessage,
   PhotoProject,
   CreateLayerOptions,
   PhotoBlendMode,
@@ -38,16 +40,35 @@ import type {
 } from "../../bridges/effects-bridge";
 import type { AutoSaveMetadata } from "../../services/auto-save";
 
-export type ClipHistoryEntryType = "shape" | "text" | "svg" | "sticker";
+export type ClipHistoryEntryType =
+  | "shape"
+  | "text"
+  | "svg"
+  | "sticker"
+  | "generated";
 
 export interface ClipHistoryEntry {
   type: ClipHistoryEntryType;
   timestamp: number;
   clipId: string;
   trackId: string;
-  clipData: ShapeClip | TextClip | SVGClip | StickerClip;
+  clipData: ShapeClip | TextClip | SVGClip | StickerClip | GeneratedClip;
   hadEmptyTrackUndo?: boolean;
   trackType?: "video" | "audio" | "image" | "text" | "graphics";
+}
+
+// Input shape for ProjectState.createGeneratedClip (feat-007). Mirrors
+// the curated subset of GeneratedClip fields the AI panel produces.
+export interface CreateGeneratedClipInput {
+  trackId: string;
+  startTime: number;
+  duration?: number;
+  source: string;
+  providerId: string;
+  model?: string;
+  paramsSchema?: Record<string, unknown>;
+  params?: Record<string, unknown>;
+  promptHistory?: readonly GeneratedClipPromptMessage[];
 }
 
 export interface EditingTemplateTrackSnapshot {
@@ -279,6 +300,21 @@ export interface ProjectState {
   getStickerClip: (clipId: string) => StickerClip | undefined;
   deleteStickerClip: (clipId: string) => boolean;
 
+  // GeneratedClip actions (feat-007)
+  createGeneratedClip: (
+    input: CreateGeneratedClipInput,
+  ) => GeneratedClip | null;
+  getGeneratedClip: (clipId: string) => GeneratedClip | undefined;
+  updateGeneratedClipParams: (
+    clipId: string,
+    params: Record<string, unknown>,
+  ) => GeneratedClip | null;
+  updateGeneratedClipSource: (
+    clipId: string,
+    source: string,
+  ) => GeneratedClip | null;
+  deleteGeneratedClip: (clipId: string) => boolean;
+
   createPhotoProject: (
     width?: number,
     height?: number,
@@ -402,6 +438,8 @@ export type {
   ShapeStyle,
   SVGClip,
   StickerClip,
+  GeneratedClip,
+  GeneratedClipPromptMessage,
   PhotoProject,
   CreateLayerOptions,
   PhotoBlendMode,

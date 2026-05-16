@@ -20,14 +20,78 @@ import { getEffectsBridge } from "../../../bridges/effects-bridge";
 import { getTransitionBridge } from "../../../bridges/transition-bridge";
 import type { ClipTransform } from "./types";
 import { DEFAULT_TRANSFORM } from "./types";
-import {
-  ThreeJSLayerRenderer,
-  readGeneratedClipColor,
-} from "./threejs-layer-renderer";
+import { ThreeJSLayerRenderer } from "./threejs-layer-renderer";
+import { SandboxRegistry } from "../../../objects/SandboxRegistry";
+import { renderScene } from "../../../objects/renderScene";
 
 let lastEffectsLogTime = 0;
 let threeJSRenderer: ThreeJSLayerRenderer | null = null;
 const animationEngine = new AnimationEngine();
+
+// Module-level offscreen canvas reused by the Three.js dispatch path so
+// every GeneratedClip frame doesn't re-allocate. Sized lazily on first
+// use; resized when the host canvas changes dimensions.
+let generatedOffscreen: HTMLCanvasElement | null = null;
+let generatedOffscreenCtx: CanvasRenderingContext2D | null = null;
+
+function ensureGeneratedOffscreen(
+  width: number,
+  height: number,
+): { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D } | null {
+  if (typeof document === "undefined") return null;
+  if (!generatedOffscreen) {
+    generatedOffscreen = document.createElement("canvas");
+  }
+  if (
+    generatedOffscreen.width !== width ||
+    generatedOffscreen.height !== height
+  ) {
+    generatedOffscreen.width = width;
+    generatedOffscreen.height = height;
+    generatedOffscreenCtx = null;
+  }
+  if (!generatedOffscreenCtx) {
+    generatedOffscreenCtx = generatedOffscreen.getContext("2d");
+  }
+  if (!generatedOffscreenCtx) return null;
+  return { canvas: generatedOffscreen, ctx: generatedOffscreenCtx };
+}
+
+// Pumps the per-clip Sandbox into a freshly-cleared offscreen canvas and
+// returns that canvas. The caller composites it onto the main ctx with
+// the clip's transform via drawImage, which means:
+//   - we never call clearRect under a transformed main ctx (which would
+//     leave trails of previous frames);
+//   - we don't accidentally erase other clips' pixels on the main ctx;
+//   - Canvas2D and Three.js paths share exactly the same scene-baking
+//     logic.
+//
+// The offscreen canvas is module-level and reused across clips/frames —
+// it's safe because every call clears it before painting.
+function pumpGeneratedClipToOffscreen(
+  clip: GeneratedClip,
+  width: number,
+  height: number,
+  time: number,
+): HTMLCanvasElement | null {
+  const offscreen = ensureGeneratedOffscreen(width, height);
+  if (!offscreen) return null;
+  offscreen.ctx.clearRect(0, 0, width, height);
+
+  const entry = SandboxRegistry.ensure(clip);
+  if (entry.ready) {
+    const localTime = Math.max(0, time - clip.startTime);
+    entry.sandbox
+      .renderFrame(localTime, clip.params ?? {})
+      .catch(() => {
+        // Frame errors (timeout, AI source threw, etc.) are intentionally
+        // swallowed in the hot path. The scene stays at its last good
+        // value; surfacing happens via the eventual ParamPanel error UI.
+      });
+  }
+  renderScene(offscreen.ctx, entry.sandbox.getLatestScene(), width, height);
+  return offscreen.canvas;
+}
 
 interface EmphasisState {
   opacity: number;
@@ -1359,35 +1423,38 @@ const renderSVGClip = (
   ctx.restore();
 };
 
-// Slice 1 MVP for feat-002. Draws a colored rectangle whose color is read from
-// `params.color`. The clip's `source` is intentionally ignored at this layer —
-// sandboxed execution arrives in feat-003.
+// feat-007 Canvas2D fast path: bake the SceneDescription into a private
+// offscreen canvas, then composite it onto the main ctx with the clip's
+// transform via drawImage. Crucially this avoids calling clearRect on a
+// transformed main ctx (which would either leave trails of previous
+// frames or erase pixels from other clips).
 const renderGeneratedClipOnly = (
   ctx: CanvasRenderingContext2D,
   generatedClip: GeneratedClip,
   canvasWidth: number,
   canvasHeight: number,
+  time: number,
 ): void => {
+  const sceneCanvas = pumpGeneratedClipToOffscreen(
+    generatedClip,
+    canvasWidth,
+    canvasHeight,
+    time,
+  );
+  if (!sceneCanvas) return;
+
   const { transform } = generatedClip;
-  const fillColor = readGeneratedClipColor(generatedClip);
-
   ctx.save();
-
   const posX = transform.position.x * canvasWidth;
   const posY = transform.position.y * canvasHeight;
-
   ctx.translate(posX, posY);
   ctx.rotate((transform.rotation * Math.PI) / 180);
   ctx.scale(transform.scale.x, transform.scale.y);
   ctx.globalAlpha = transform.opacity;
-
-  const baseSize = Math.min(canvasWidth, canvasHeight);
-  const rectSize = baseSize * 0.15;
-  const halfSize = rectSize / 2;
-
-  ctx.fillStyle = fillColor;
-  ctx.fillRect(-halfSize, -halfSize, rectSize, rectSize);
-
+  // SceneDescription uses 0..1 coords across the full offscreen; anchor
+  // the composite at the offscreen's center so position behaves like
+  // other clips (anchor = center).
+  ctx.drawImage(sceneCanvas, -canvasWidth / 2, -canvasHeight / 2);
   ctx.restore();
 };
 
@@ -1583,11 +1650,20 @@ export const renderShapeClipToCanvas = (
         canvasHeight,
       );
     } else if (transformedClip.type === "generated") {
-      mesh = threeJSRenderer.renderGeneratedClip(
+      const sceneCanvas = pumpGeneratedClipToOffscreen(
         transformedClip as GeneratedClip,
         canvasWidth,
         canvasHeight,
+        time,
       );
+      if (sceneCanvas) {
+        mesh = threeJSRenderer.renderGeneratedClipFromCanvas(
+          transformedClip as GeneratedClip,
+          sceneCanvas,
+          canvasWidth,
+          canvasHeight,
+        );
+      }
     } else {
       mesh = threeJSRenderer.renderShapeClip(
         transformedClip as ShapeClip,
@@ -1629,6 +1705,7 @@ export const renderShapeClipToCanvas = (
       transformedClip as GeneratedClip,
       canvasWidth,
       canvasHeight,
+      time,
     );
   } else {
     renderShapeOnly(

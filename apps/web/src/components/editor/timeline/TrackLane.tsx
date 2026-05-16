@@ -5,6 +5,7 @@ import type {
   ShapeClip,
   SVGClip,
   StickerClip,
+  GeneratedClip,
 } from "@openreel/core";
 import { ClipComponent } from "./ClipComponent";
 import { TextClipComponent } from "./TextClipComponent";
@@ -16,7 +17,7 @@ import { useUIStore } from "../../../stores/ui-store";
 import { useProjectStore } from "../../../stores/project-store";
 import { toast } from "../../../stores/notification-store";
 
-type GraphicClipUnion = ShapeClip | SVGClip | StickerClip;
+type GraphicClipUnion = ShapeClip | SVGClip | StickerClip | GeneratedClip;
 
 interface TrackLaneProps {
   track: Track;

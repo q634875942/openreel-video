@@ -104,6 +104,10 @@ export const SaveTemplateDialog: React.FC<SaveTemplateDialogProps> = ({
         const shapes = graphicsEngine.getAllShapeClips();
         const svgs = graphicsEngine.getAllSVGClips();
         const stickers = graphicsEngine.getAllStickerClips();
+        // TODO(feat-007): GeneratedClips are intentionally NOT bundled into
+        // editing templates yet — that needs a parallel TemplateWithGraphics
+        // type extension + a loader path that re-runs the AI source through
+        // the SandboxRegistry on template apply. Tracked for a future feat.
 
         if (shapes.length > 0 || svgs.length > 0 || stickers.length > 0) {
           (templateWithMeta as TemplateWithGraphics).timeline.graphics = {

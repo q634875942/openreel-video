@@ -699,7 +699,8 @@ export const Preview: React.FC = () => {
     const shapes = graphicsEngine?.getAllShapeClips() || [];
     const svgs = graphicsEngine?.getAllSVGClips() || [];
     const stickers = graphicsEngine?.getAllStickerClips() || [];
-    return [...shapes, ...svgs, ...stickers];
+    const generated = graphicsEngine?.getAllGeneratedClips() || [];
+    return [...shapes, ...svgs, ...stickers, ...generated];
   }, [getGraphicsEngine, project.modifiedAt]);
 
   // Get subtitles from project timeline

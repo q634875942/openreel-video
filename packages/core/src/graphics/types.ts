@@ -178,6 +178,20 @@ export const DEFAULT_GENERATED_PARAMS_SCHEMA: Record<string, unknown> = {
   additionalProperties: false,
 };
 
+// Parameters for GraphicsEngine.createGenerated (feat-007). Mirrors
+// CreateShapeParams below.
+export interface CreateGeneratedParams {
+  readonly id?: string;
+  readonly source: string;
+  readonly providerId: string;
+  readonly model?: string;
+  readonly sourceLanguage?: GeneratedClipSourceLanguage;
+  readonly paramsSchema?: Record<string, unknown>;
+  readonly params?: Record<string, unknown>;
+  readonly promptHistory?: readonly GeneratedClipPromptMessage[];
+  readonly metadata?: ClipMetadata;
+}
+
 export type ShapeType =
   | "rectangle"
   | "circle"

@@ -3,7 +3,7 @@
 ## Current State
 
 **Last Updated:** 2026-05-16
-**Active Feature:** feat-006 done — MVP AI panel with standalone preview lands. Next: integration into timeline (feat-007 carry-over) and OpenAI/Compatible providers.
+**Active Feature:** feat-007 done — GeneratedClip is now a first-class timeline citizen (createGeneratedClip action, per-clip Sandbox loop in canvas-renderers for both Canvas2D + Three.js paths, Add-to-timeline button in AIPanel, ParamPanel section in InspectorPanel for schema-driven visual editing). Next: feat-008 Monaco source editor + feat-009 param keyframes (carried over from feat-007d scope cut).
 **Dev server:** stopped
 
 ## Status
@@ -24,25 +24,24 @@
 - [x] **feat-005 (Slice 2.2) — Provider implementations (Claude + DeepSeek)**: installed @anthropic-ai/sdk ^0.96.0 and openai ^6.37.0. Implemented two providers via stream translators (openai-translation.ts, anthropic-translation.ts), DeepSeekProvider (openai SDK + DeepSeek baseURL, deepseek-v4-flash / deepseek-v4-pro), ClaudeProvider (anthropic SDK with ephemeral prompt caching on system + last tool, opus-4-7/sonnet-4-6/haiku-4-5), ProviderRegistry. OpenAIProvider and CompatibleProvider deferred — DeepSeek's openai-compatible path already exercises that code. Dev-time keys flow through apps/web/.env.example (VITE_*). Encrypted IndexedDB key storage deferred to feat-006. +42 unit tests, all green.
 - [x] **feat-005 verification (live API)**: ran `apps/web/scripts/smoke-deepseek.mjs` against real DeepSeek API. Returned `"Hello there friend"` in 236 chunks (231 reasoning_content + 4 content), finish_reason=stop, usage tokens reported correctly. Confirmed: key valid, network reaches api.deepseek.com, V4 model names correct, our openai-translation.ts wire format matches DeepSeek's real streaming output. Two findings recorded for follow-up: (a) DeepSeek-V4 is reasoning-first — max_tokens >= 800 needed for short replies; (b) `reasoning_content` field is silently dropped by current translator — a future feat can add a `reasoning-delta` channel to GenerateChunk if the UI wants to show "AI is thinking" progress.
 - [x] **feat-006 (Slice 2.3) — AI Panel MVP**: floating panel toggled by Ctrl+Shift+G that proves the end-to-end loop without yet integrating into openreel's timeline. New files: `apps/web/src/ai/objectPrompt.ts` (system prompt + tool def), `generateObject.ts` (high-level helper), `providers/bootstrap.ts` (registry from .env.local), `components/AIPanel/AIPanel.tsx`, `renderScene.ts`, `useAIPanelHotkey.ts`, `index.ts`. Mounted in App.tsx alongside SearchModal. +15 tests (generateObject 7, renderScene 8). Dev server verified (Vite ready in 1010ms, AIPanel.tsx compiled OK).
-- [x] **feat-006 hotfix — DeepSeek reasoner tool_choice**: live testing surfaced `400: deepseek-reasoner does not support this tool_choice` when AIPanel hit Generate with deepseek-v4-flash. Both V4 variants are reasoners and reject forced tool_choice. Added `supportsForcedToolChoice?: boolean` to ModelInfo (default treated as true). DeepSeek's v4-flash and v4-pro now declare `supportsForcedToolChoice: false`. New helper `stripForcedToolChoiceIfUnsupported(request, models)` runs before buildOpenAICompatBody and drops forceTool for unsupported models; resulting tool_choice falls back to `'auto'` and the strong system prompt in objectPrompt.ts coerces the tool call. +5 unit tests covering the strip helper + the provider-level strip behaviour.
+- [x] **feat-006 hotfix — DeepSeek reasoner tool_choice**: live testing surfaced `400: deepseek-reasoner does not support this tool_choice` when AIPanel hit Generate with deepseek-v4-flash. Both V4 variants are reasoners and reject forced tool_choice. Added `supportsForcedToolChoice?: boolean` to ModelInfo (default treated as true). DeepSeek's v4-flash and v4-pro now declare `supportsForcedToolChoice: false`. New helper `stripForcedToolChoiceIfUnsupported(request, models)` runs before buildOpenAICompatBody and drops forceTool for unsupported models; resulting tool_choice falls back to `'auto'` and the strong system prompt in objectPrompt.ts coerges the tool call. +5 unit tests covering the strip helper + the provider-level strip behaviour.
+- [x] **feat-007 (Slice 3) — Timeline integration + visual parameter editing**: GeneratedClip now lives on the timeline as a real clip. Four sub-deliverables shipped: (a) GraphicsEngine grew createGenerated/get*/delete/updateGeneratedClipParams/updateGeneratedClipSource/updateGeneratedClip/loadGeneratedClips with a private generatedClips Map; CreateGeneratedParams added to types.ts. project-store grew createGeneratedClip/getGeneratedClip/updateGeneratedClipParams/updateGeneratedClipSource/deleteGeneratedClip, all mirroring the shape/svg patterns; the latter two call SandboxRegistry.dispose first to reclaim the Worker. ClipHistoryEntryType union grew "generated"; HistoryPanel switched to the type alias and got a Sparkles icon. (b) New apps/web/src/objects/SandboxRegistry.ts singleton (ensure/get/dispose/disposeAll/size) caches Sandbox per clip, keyed by clip.id, rebuilds when source hash (djb2) changes — disposes old worker first. renderScene moved to apps/web/src/objects/renderScene.ts so both AIPanel and canvas-renderers import it; AIPanel/renderScene.ts is now a one-line re-export. canvas-renderers' Canvas2D fast path (renderGeneratedClipOnly) and the Three.js branch both replaced with a Sandbox→SceneDescription→renderScene pump: Canvas2D draws straight into the main ctx after applying clip.transform; Three.js uses a module-level offscreen HTMLCanvasElement that's renderGeneratedClipFromCanvas'd via the new texture-only helper on ThreeJSLayerRenderer (the old rect-drawing renderGeneratedClip + readGeneratedClipColor + DEFAULT_GENERATED_CLIP_COLOR were deleted in the same commit). localTime = max(0, time - clip.startTime). (c) AIPanel grew "Add to timeline" — onGenerate stores a PendingGeneration in state, the button finds the first graphics track + reads useTimelineStore.playheadPosition and calls createGeneratedClip with duration=5 and the user prompt in promptHistory. No graphics track → yellow inline error "Add a graphics track first" (we don't auto-create). Header label refreshed (no longer "feat-006 MVP"). (d) New apps/web/src/components/ParamPanel/ with schemaToFields.ts (pure JSON-Schema → FieldDescriptor mapper: color/number/select/boolean/text/vector + unknown fallback) and ParamPanel.tsx (re-exports as GeneratedClipSection for InspectorPanel; reuses ColorPicker / LabeledSlider / Switch from @openreel/ui). InspectorPanel selectedClip useMemo grew a getGeneratedClip lookup returning mediaId "generated-{id}"; clipType useMemo grew a "generated" branch; new Section "AI Object Parameters" wires GeneratedClipSection. Verification: workspace pnpm typecheck clean across 5 projects; pnpm --filter @openreel/core test:run 187/187 pass (+11 vs 176 baseline); pnpm --filter @openreel/web test:run 251 pass / 7 skipped / 1 fail (+23 net: +8 SandboxRegistry +15 schemaToFields, -5 deleted placeholder; same pre-existing project-store.test.ts:851 fail as before); pnpm --filter @openreel/web build 14.45s clean. Keyframe binding for params explicitly deferred to feat-009 (Action/state system) — the existing project-store.updateClipKeyframes API is the future entry point.
 
 ### What's In Progress
 
-- [ ] **feat-007 — Timeline integration**: wire the AI panel's output into openreel's project store as a real GeneratedClip on a graphics track; reuse the existing canvas-renderers dispatch instead of the panel's standalone preview canvas.
+(none)
 
 ### What's Next
 
 In rough priority order:
-1. `createGeneratedClip` action in the project store, mirroring createShapeClip/createSVGClip
-2. Replace canvas-renderers.ts's hardcoded `params.color` rect (the feat-002 placeholder) with a call into a per-clip Sandbox that yields a SceneDescription, then loop `renderScene` over its shapes
-3. Once that loop works, the AI panel's standalone preview becomes redundant — add an "Add to timeline" button that calls createGeneratedClip with the AI's source
-4. Settings UI + encrypted IndexedDB key store (currently keys are .env.local-only)
-5. OpenAIProvider + CompatibleProvider (DeepSeek already exercises the openai-compatible code path)
-6. "Fix with AI" on render error: capture sandbox init errors and feed them back into the AI as a tool-result follow-up message
-7. ParamPanel (JsonSchema -> form) so the user can tweak `defaultParams` after generation
-8. SourceEditor (Monaco) for the half-technical user's "escape hatch"
+1. **feat-008 — Monaco source editor**: double-click a GeneratedClip to open its source, edit + save re-mounts the sandbox (SandboxRegistry will auto-rebuild on source-hash change), "Ask AI to refactor" sends selection+instruction to provider.
+2. **feat-009 — Action/state system**: keyframe-bind GeneratedClip params via the existing AnimationEngine + updateClipKeyframes. This was scope-cut from feat-007d.
+3. Settings UI + encrypted IndexedDB key store (currently keys are .env.local-only)
+4. OpenAIProvider + CompatibleProvider (DeepSeek already exercises the openai-compatible code path)
+5. "Fix with AI" on render error: capture sandbox init errors and feed them back into the AI as a tool-result follow-up message
+6. Auto-create-graphics-track from AIPanel when none exists (currently shows inline "add one first" warning)
 
-User can verify feat-006 live with the leaked DeepSeek key (or a freshly-rotated one) by setting VITE_DEEPSEEK_API_KEY in apps/web/.env.local, running `pnpm dev`, pressing Ctrl+Shift+G, and clicking Generate.
+User can verify feat-007 live with the leaked DeepSeek key (or a freshly-rotated one): set VITE_DEEPSEEK_API_KEY in apps/web/.env.local, `pnpm dev`, open the editor, add a graphics track, Ctrl+Shift+G → Generate (prompt: "A red circle that bounces vertically") → wait for in-panel preview → click "Add to timeline" → play the main timeline → confirm the same bouncing red circle animates in the main preview → select the clip → ParamPanel section appears in the inspector with the schema's controls → drag color picker → main preview updates live without re-calling the AI. Delete the clip and confirm via `chrome://inspect` that no Worker leaks.
 
 ## Blockers / Risks
 
@@ -106,6 +105,27 @@ User can verify feat-006 live with the leaked DeepSeek key (or a freshly-rotated
 - `apps/web/src/components/AIPanel/useAIPanelHotkey.ts` — new — Ctrl+Shift+G hotkey hook
 - `apps/web/src/components/AIPanel/index.ts` — new — barrel
 - `apps/web/src/App.tsx` — modified — mounted AIPanel + wired hotkey
+- `packages/core/src/graphics/types.ts` — modified — added CreateGeneratedParams (feat-007)
+- `packages/core/src/graphics/graphics-engine.ts` — modified — generatedClips Map + createGenerated/get*/delete/update*/loadGeneratedClips methods + clearCache extension (feat-007)
+- `packages/core/src/graphics/graphics-engine.test.ts` — modified — +11 tests for the new methods (feat-007)
+- `apps/web/src/objects/SandboxRegistry.ts` — new — per-clip Sandbox cache singleton (feat-007)
+- `apps/web/src/objects/SandboxRegistry.test.ts` — new — +8 tests using FakeWorker (feat-007)
+- `apps/web/src/objects/renderScene.ts` — new — relocated from AIPanel/ so canvas-renderers can import it (feat-007)
+- `apps/web/src/components/AIPanel/renderScene.ts` — modified — now a one-line re-export from objects/ (feat-007)
+- `apps/web/src/components/editor/preview/canvas-renderers.ts` — modified — Sandbox→renderScene pump replaces placeholder rect in both Canvas2D and Three.js dispatch paths (feat-007)
+- `apps/web/src/components/editor/preview/threejs-layer-renderer.ts` — modified — added renderGeneratedClipFromCanvas; deleted old renderGeneratedClip + readGeneratedClipColor + DEFAULT_GENERATED_CLIP_COLOR (feat-007)
+- `apps/web/src/components/editor/preview/canvas-renderers.test.ts` — modified — deleted 5 placeholder-rect tests; left a comment block pointing to the replacement coverage (feat-007)
+- `apps/web/src/stores/project/types.ts` — modified — added CreateGeneratedClipInput + extended ClipHistoryEntryType union + ProjectState action signatures (note: this interface is currently unused/duplicate; the live ProjectState in project-store.ts also got the signatures) (feat-007)
+- `apps/web/src/stores/project-store.ts` — modified — imported SandboxRegistry + CreateGeneratedClipInput; added createGeneratedClip / getGeneratedClip / updateGeneratedClipParams / updateGeneratedClipSource / deleteGeneratedClip actions (feat-007)
+- `apps/web/src/components/editor/inspector/HistoryPanel.tsx` — modified — widened clipType union to ClipHistoryEntryType + added Sparkles icon for "generated" entries (feat-007)
+- `apps/web/src/components/AIPanel/AIPanel.tsx` — modified — added PendingGeneration state, onAddToTimeline callback, "Add to timeline" button + success/error banners (feat-007)
+- `apps/web/src/components/ParamPanel/schemaToFields.ts` — new — pure JSON-Schema → FieldDescriptor mapper (feat-007)
+- `apps/web/src/components/ParamPanel/schemaToFields.test.ts` — new — +15 tests (feat-007)
+- `apps/web/src/components/ParamPanel/ParamPanel.tsx` — new — React component + GeneratedClipSection alias (feat-007)
+- `apps/web/src/components/ParamPanel/index.ts` — new — barrel (feat-007)
+- `apps/web/src/components/editor/InspectorPanel.tsx` — modified — getGeneratedClip lookup branch + "generated" clipType + Section wiring GeneratedClipSection (feat-007)
+- `feature_list.json` — modified — feat-007 marked done with detailed evidence (feat-007)
+- `progress.md` — modified — this file (feat-007)
 
 ## Evidence of Completion (feat-000 / Slice 0)
 
