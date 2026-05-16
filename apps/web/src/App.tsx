@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useRef, lazy, Suspense } from "react";
+import { useEffect, useCallback, useRef, useState, lazy, Suspense } from "react";
 import { ToastContainer } from "./components/Toast";
 import { ScriptViewDialog } from "./components/editor/ScriptViewDialog";
 import { SearchModal } from "./components/editor/SearchModal";
@@ -6,6 +6,7 @@ import { MobileBlocker } from "./components/MobileBlocker";
 import { WelcomeScreen } from "./components/welcome";
 import { RecoveryDialog } from "./components/welcome/RecoveryDialog";
 import { SharePage } from "./pages/SharePage";
+import { AIPanel, useAIPanelHotkey } from "./components/AIPanel";
 import { useUIStore } from "./stores/ui-store";
 import { useProjectStore } from "./stores/project-store";
 import { useRouter } from "./hooks/use-router";
@@ -45,6 +46,11 @@ function App() {
   const hasHandledInitialRoute = useRef(false);
 
   useKieAIPoller();
+
+  // AI object generator panel — toggled by Ctrl+Shift+G (feat-006 MVP).
+  const [aiPanelOpen, setAiPanelOpen] = useState(false);
+  const toggleAIPanel = useCallback(() => setAiPanelOpen((v) => !v), []);
+  useAIPanelHotkey(toggleAIPanel);
 
   useEffect(() => {
     if (hasHandledInitialRoute.current) return;
@@ -151,6 +157,7 @@ function App() {
           onClose={closeModal}
         />
         <SearchModal isOpen={activeModal === "search"} onClose={closeModal} />
+        <AIPanel open={aiPanelOpen} onClose={() => setAiPanelOpen(false)} />
         {showDialog && availableSaves.length > 0 && (
           <RecoveryDialog
             saves={availableSaves}

@@ -53,17 +53,17 @@
     },
     {
       "id": "feat-006",
-      "name": "Slice 2.3 — AI Panel UI",
-      "description": "Create `apps/web/src/components/AIPanel/`. Provider+model dropdown, prompt input, generate button, streaming output area, 'Fix with AI' on render error. Settings entry for API keys (stored encrypted in IndexedDB via `keyStore.ts`). Wire createGeneratedClip into project store.",
+      "name": "Slice 2.3 — AI Panel MVP (standalone preview, not yet on timeline)",
+      "description": "Create `apps/web/src/components/AIPanel/`. Provider+model dropdown, prompt input, generate button, streaming output area, in-panel sandboxed preview canvas. Toggled by Ctrl+Shift+G. This MVP proves the end-to-end loop (prompt -> AI -> sandbox -> render) without integrating into openreel's timeline / project store; that wiring and encrypted IndexedDB key storage and 'Fix with AI' are deferred to subsequent feats.",
       "dependencies": ["feat-002", "feat-005"],
-      "status": "not-started",
-      "evidence": ""
+      "status": "done",
+      "evidence": "AI module: `apps/web/src/ai/objectPrompt.ts` (SYSTEM_PROMPT teaching the SceneDescription contract with a concrete bouncing-circle example + DEFINE_GENERATED_OBJECT_TOOL with JSON Schema for name/source/paramsSchema/defaultParams), `generateObject.ts` (high-level helper using forceTool to get structured output, optional onTextDelta callback, GenerateObjectError class), `providers/bootstrap.ts` (instantiates Claude/DeepSeek providers from VITE_*_API_KEY at module load). Panel: `apps/web/src/components/AIPanel/AIPanel.tsx` (floating overlay, provider+model dropdowns auto-populated from registry, prompt textarea, generate button with streaming text output, in-panel 480x270 preview canvas running its own Sandbox in a requestAnimationFrame loop with frameTimeoutMs=200ms, collapsible 'AI text output' and 'Generated source' sections, error display), `renderScene.ts` (standalone Canvas 2D renderer for SceneDescription — rect/circle/line/text with opacity clamping), `useAIPanelHotkey.ts` (Ctrl+Shift+G / Cmd+Shift+G binding with platform-aware label), `index.ts` (barrel). Mounted in `App.tsx` alongside SearchModal; opens on hotkey, closes on Escape or close button. Tests: +15 cases across generateObject.test.ts (7: parses tool call, defaults for missing fields, forwards request shape, missing tool call error, missing source error, malformed JSON error, onTextDelta tap) and renderScene.test.ts (8: clear-first invariant, rect/circle/line/text placement at normalized coords scaled to canvas size, opacity respect, NaN/out-of-range opacity clamping, shape order preservation). Verification: pnpm typecheck clean across all 5 workspace projects; pnpm --filter @openreel/web test:run -> 228 passed / 7 skipped (vs 213 baseline = +15 new); pnpm dev launches Vite v5.4.21 ready in 1010ms on http://localhost:5173 with AIPanel.tsx served correctly (47416 bytes compiled, with HMR hooks). Same pre-existing project-store.test.ts:851 failure as before."
     },
     {
       "id": "feat-007",
-      "name": "Slice 3 — Visual parameter editing (JsonSchema → form)",
-      "description": "Component `apps/web/src/components/ParamPanel/` reads a GeneratedClip's `paramsSchema` and renders inputs (color picker, number slider, vector, select, text). Param changes flow back to clip without re-running AI. Params support keyframe binding via the existing AnimationEngine.",
-      "dependencies": ["feat-006"],
+      "name": "Slice 3 — Timeline integration + visual parameter editing",
+      "description": "(a) Add `createGeneratedClip` action to the project store mirroring createShapeClip/createSVGClip. (b) Replace canvas-renderers.ts's hardcoded `params.color` rect path with a per-clip Sandbox -> SceneDescription -> renderScene loop. (c) Add 'Add to timeline' button to AIPanel that calls createGeneratedClip; the panel's standalone preview canvas becomes the AIPanel's editing surface for in-progress objects, while the timeline renders committed ones. (d) Component `apps/web/src/components/ParamPanel/` reads a GeneratedClip's `paramsSchema` and renders inputs (color picker, number slider, vector, select, text); param changes flow back to clip without re-running AI; params support keyframe binding via the existing AnimationEngine.",
+      "dependencies": ["feat-002", "feat-006"],
       "status": "not-started",
       "evidence": ""
     },

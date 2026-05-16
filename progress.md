@@ -3,7 +3,7 @@
 ## Current State
 
 **Last Updated:** 2026-05-16
-**Active Feature:** feat-005 done (Claude + DeepSeek shipped; OpenAI/Compatible deferred). feat-006 (Slice 2.3 — AI Panel UI + key storage) is next
+**Active Feature:** feat-006 done — MVP AI panel with standalone preview lands. Next: integration into timeline (feat-007 carry-over) and OpenAI/Compatible providers.
 **Dev server:** stopped
 
 ## Status
@@ -23,21 +23,25 @@
 - [x] **feat-004 (Slice 2.1) — AIProvider abstraction**: defined provider-neutral types + AIProvider interface + two pure helpers in `apps/web/src/ai/`. Types include ChatMessage with both string-content and array-of-content-parts shapes, ToolDefinition wrapping JSON Schema, GenerateRequest, the GenerateChunk discriminated union (message-start/text-delta/tool-use-start/tool-use-input-delta/tool-use-end/done/error), FinalResult. AIProvider interface: info + listModels() + generate(request, options?) returning AsyncIterable<GenerateChunk>, with AbortSignal support. Helpers: streamToFinal collects a stream into FinalResult (handles concurrent tool calls, JSON parse errors, terminal/error chunks); validateGenerateRequest does runtime shape checking returning an error array. +24 new tests, all green.
 - [x] **feat-005 (Slice 2.2) — Provider implementations (Claude + DeepSeek)**: installed @anthropic-ai/sdk ^0.96.0 and openai ^6.37.0. Implemented two providers via stream translators (openai-translation.ts, anthropic-translation.ts), DeepSeekProvider (openai SDK + DeepSeek baseURL, deepseek-v4-flash / deepseek-v4-pro), ClaudeProvider (anthropic SDK with ephemeral prompt caching on system + last tool, opus-4-7/sonnet-4-6/haiku-4-5), ProviderRegistry. OpenAIProvider and CompatibleProvider deferred — DeepSeek's openai-compatible path already exercises that code. Dev-time keys flow through apps/web/.env.example (VITE_*). Encrypted IndexedDB key storage deferred to feat-006. +42 unit tests, all green.
 - [x] **feat-005 verification (live API)**: ran `apps/web/scripts/smoke-deepseek.mjs` against real DeepSeek API. Returned `"Hello there friend"` in 236 chunks (231 reasoning_content + 4 content), finish_reason=stop, usage tokens reported correctly. Confirmed: key valid, network reaches api.deepseek.com, V4 model names correct, our openai-translation.ts wire format matches DeepSeek's real streaming output. Two findings recorded for follow-up: (a) DeepSeek-V4 is reasoning-first — max_tokens >= 800 needed for short replies; (b) `reasoning_content` field is silently dropped by current translator — a future feat can add a `reasoning-delta` channel to GenerateChunk if the UI wants to show "AI is thinking" progress.
+- [x] **feat-006 (Slice 2.3) — AI Panel MVP**: floating panel toggled by Ctrl+Shift+G that proves the end-to-end loop without yet integrating into openreel's timeline. New files: `apps/web/src/ai/objectPrompt.ts` (system prompt + tool def), `generateObject.ts` (high-level helper), `providers/bootstrap.ts` (registry from .env.local), `components/AIPanel/AIPanel.tsx`, `renderScene.ts`, `useAIPanelHotkey.ts`, `index.ts`. Mounted in App.tsx alongside SearchModal. +15 tests (generateObject 7, renderScene 8). Dev server verified (Vite ready in 1010ms, AIPanel.tsx compiled OK).
 
 ### What's In Progress
 
-- [ ] **feat-006 — AI Panel UI + visual editing + provider settings**: not yet started
+- [ ] **feat-007 — Timeline integration**: wire the AI panel's output into openreel's project store as a real GeneratedClip on a graphics track; reuse the existing canvas-renderers dispatch instead of the panel's standalone preview canvas.
 
 ### What's Next
 
-Open questions before feat-006 begins:
-1. Decide where the AI panel lives in the UI — likely a tab in the existing right inspector panel, or a slide-out from the left toolbar
-2. Settings UI for adding API keys per provider + selecting active provider/model
-3. Encrypted IndexedDB-backed keyStore for production key storage
-4. Wire the AI panel: prompt input → call active provider → display streaming text → on tool-call completion, validate the source, init sandbox with it, add a GeneratedClip to the project, integrate the sandbox into the canvas-renderers so we finally swap out the hardcoded `params.color` rect for real shapes from sandbox.getLatestScene()
-5. Carry-over: sandbox integration with renderers (feat-002's hardcoded `params.color` rect path still in use)
+In rough priority order:
+1. `createGeneratedClip` action in the project store, mirroring createShapeClip/createSVGClip
+2. Replace canvas-renderers.ts's hardcoded `params.color` rect (the feat-002 placeholder) with a call into a per-clip Sandbox that yields a SceneDescription, then loop `renderScene` over its shapes
+3. Once that loop works, the AI panel's standalone preview becomes redundant — add an "Add to timeline" button that calls createGeneratedClip with the AI's source
+4. Settings UI + encrypted IndexedDB key store (currently keys are .env.local-only)
+5. OpenAIProvider + CompatibleProvider (DeepSeek already exercises the openai-compatible code path)
+6. "Fix with AI" on render error: capture sandbox init errors and feed them back into the AI as a tool-result follow-up message
+7. ParamPanel (JsonSchema -> form) so the user can tweak `defaultParams` after generation
+8. SourceEditor (Monaco) for the half-technical user's "escape hatch"
 
-Note on real-API verification: feat-005 ships with mock-only tests. The user has a DeepSeek API key. Once feat-006 lands a minimal AI panel, the end-to-end "prompt → DeepSeek → SceneDescription → render" loop can be verified live.
+User can verify feat-006 live with the leaked DeepSeek key (or a freshly-rotated one) by setting VITE_DEEPSEEK_API_KEY in apps/web/.env.local, running `pnpm dev`, pressing Ctrl+Shift+G, and clicking Generate.
 
 ## Blockers / Risks
 
@@ -91,6 +95,16 @@ Note on real-API verification: feat-005 ships with mock-only tests. The user has
 - `apps/web/.env.example` — modified — added VITE_ANTHROPIC_API_KEY / VITE_OPENAI_API_KEY / VITE_DEEPSEEK_API_KEY / VITE_COMPATIBLE_* dev vars
 - `apps/web/package.json` — modified — added @anthropic-ai/sdk and openai as dependencies
 - `apps/web/scripts/smoke-deepseek.mjs` — new — one-off live API verification script (uses openai SDK directly; gated by VITE_DEEPSEEK_API_KEY in .env.local). Confirmed feat-005's wire format against real DeepSeek API on 2026-05-16.
+- `apps/web/src/ai/objectPrompt.ts` — new — system prompt + DEFINE_GENERATED_OBJECT_TOOL JSON Schema (feat-006)
+- `apps/web/src/ai/generateObject.ts` — new — high-level helper wrapping provider + tool call
+- `apps/web/src/ai/generateObject.test.ts` — new — 7 unit tests
+- `apps/web/src/ai/providers/bootstrap.ts` — new — bootstrap registry from VITE_*_API_KEY
+- `apps/web/src/components/AIPanel/AIPanel.tsx` — new — floating panel React component
+- `apps/web/src/components/AIPanel/renderScene.ts` — new — standalone SceneDescription -> Canvas2D renderer
+- `apps/web/src/components/AIPanel/renderScene.test.ts` — new — 8 unit tests
+- `apps/web/src/components/AIPanel/useAIPanelHotkey.ts` — new — Ctrl+Shift+G hotkey hook
+- `apps/web/src/components/AIPanel/index.ts` — new — barrel
+- `apps/web/src/App.tsx` — modified — mounted AIPanel + wired hotkey
 
 ## Evidence of Completion (feat-000 / Slice 0)
 
