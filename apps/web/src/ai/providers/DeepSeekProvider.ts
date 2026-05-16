@@ -39,21 +39,24 @@ export interface DeepSeekProviderOptions {
   readonly clientFactory?: () => OpenAICompatClient;
 }
 
+// Model list verified against api.deepseek.com/v1/models on 2026-05-16.
+// Both V4 variants are reasoning models — they emit a large prefix of
+// `reasoning_content` deltas before the final `content`. Plan for
+// max_tokens accordingly (>= 800 for short replies, more for code gen).
 const DEEPSEEK_MODELS: readonly ModelInfo[] = [
   {
-    id: "deepseek-chat",
-    displayName: "DeepSeek-V3 Chat",
-    contextWindow: 64_000,
+    id: "deepseek-v4-flash",
+    displayName: "DeepSeek-V4 Flash",
+    contextWindow: 128_000,
     supportsTools: true,
     inputCostPerMTokens: 0.27,
     outputCostPerMTokens: 1.1,
   },
   {
-    id: "deepseek-reasoner",
-    displayName: "DeepSeek-R1 Reasoner",
-    contextWindow: 64_000,
-    // The reasoner currently does not expose tool calling on DeepSeek's API.
-    supportsTools: false,
+    id: "deepseek-v4-pro",
+    displayName: "DeepSeek-V4 Pro",
+    contextWindow: 128_000,
+    supportsTools: true,
     inputCostPerMTokens: 0.55,
     outputCostPerMTokens: 2.19,
   },

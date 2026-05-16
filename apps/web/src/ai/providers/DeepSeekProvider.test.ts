@@ -35,7 +35,7 @@ async function collect(
 }
 
 const minimalRequest: GenerateRequest = {
-  model: "deepseek-chat",
+  model: "deepseek-v4-flash",
   messages: [{ role: "user", content: "hi" }],
 };
 
@@ -43,7 +43,7 @@ describe("buildOpenAICompatBody", () => {
   it("translates a minimal request to OpenAI body shape", () => {
     const body = buildOpenAICompatBody(minimalRequest);
     expect(body).toMatchObject({
-      model: "deepseek-chat",
+      model: "deepseek-v4-flash",
       stream: true,
       messages: [{ role: "user", content: "hi" }],
     });
@@ -165,8 +165,8 @@ describe("DeepSeekProvider", () => {
       clientFactory: () => makeFakeClient([]),
     });
     const ids = provider.listModels().map((m) => m.id);
-    expect(ids).toContain("deepseek-chat");
-    expect(ids).toContain("deepseek-reasoner");
+    expect(ids).toContain("deepseek-v4-flash");
+    expect(ids).toContain("deepseek-v4-pro");
   });
 
   it("rejects construction without apiKey or clientFactory", () => {
@@ -189,7 +189,7 @@ describe("DeepSeekProvider", () => {
     expect(createSpy).toHaveBeenCalledTimes(1);
     const [body] = createSpy.mock.calls[0];
     expect(body).toMatchObject({
-      model: "deepseek-chat",
+      model: "deepseek-v4-flash",
       stream: true,
       messages: [{ role: "user", content: "hi" }],
     });
