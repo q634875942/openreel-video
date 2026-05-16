@@ -2,10 +2,12 @@ import { describe, it, expect, vi } from "vitest";
 import {
   DeepSeekProvider,
   buildOpenAICompatBody,
+  stripForcedToolChoiceIfUnsupported,
   type OpenAICompatClient,
 } from "./DeepSeekProvider";
+import type { ModelInfo } from "../types";
 import type { OpenAICompatChunk } from "./openai-translation";
-import type { GenerateChunk, GenerateRequest } from "../types";
+import type { GenerateChunk, GenerateRequest, ToolDefinition } from "../types";
 
 async function* asyncIter<T>(items: T[]): AsyncIterable<T> {
   for (const item of items) yield item;
@@ -38,6 +40,72 @@ const minimalRequest: GenerateRequest = {
   model: "deepseek-v4-flash",
   messages: [{ role: "user", content: "hi" }],
 };
+
+const tool: ToolDefinition = {
+  name: "create_clip",
+  description: "create a GeneratedClip",
+  inputSchema: { type: "object", properties: {} },
+};
+
+describe("stripForcedToolChoiceIfUnsupported", () => {
+  const unsupportedModel: ModelInfo = {
+    id: "reasoner",
+    displayName: "r",
+    contextWindow: 1,
+    supportsTools: true,
+    supportsForcedToolChoice: false,
+  };
+  const supportedModel: ModelInfo = {
+    id: "ok",
+    displayName: "ok",
+    contextWindow: 1,
+    supportsTools: true,
+  };
+
+  it("removes forceTool when the chosen model rejects it", () => {
+    const out = stripForcedToolChoiceIfUnsupported(
+      {
+        model: "reasoner",
+        messages: [{ role: "user", content: "x" }],
+        forceTool: "my_tool",
+      },
+      [unsupportedModel, supportedModel],
+    );
+    expect(out.forceTool).toBeUndefined();
+  });
+
+  it("leaves forceTool alone when the model supports it", () => {
+    const out = stripForcedToolChoiceIfUnsupported(
+      {
+        model: "ok",
+        messages: [{ role: "user", content: "x" }],
+        forceTool: "my_tool",
+      },
+      [unsupportedModel, supportedModel],
+    );
+    expect(out.forceTool).toBe("my_tool");
+  });
+
+  it("leaves the request unchanged when forceTool is not set", () => {
+    const req = {
+      model: "reasoner",
+      messages: [{ role: "user" as const, content: "x" }],
+    };
+    expect(stripForcedToolChoiceIfUnsupported(req, [unsupportedModel])).toBe(req);
+  });
+
+  it("leaves forceTool alone when the model is unknown to the list", () => {
+    const out = stripForcedToolChoiceIfUnsupported(
+      {
+        model: "mystery",
+        messages: [{ role: "user", content: "x" }],
+        forceTool: "my_tool",
+      },
+      [unsupportedModel],
+    );
+    expect(out.forceTool).toBe("my_tool");
+  });
+});
 
 describe("buildOpenAICompatBody", () => {
   it("translates a minimal request to OpenAI body shape", () => {
@@ -216,6 +284,29 @@ describe("DeepSeekProvider", () => {
     const chunks = await collect(provider.generate(minimalRequest));
     expect(chunks).toHaveLength(1);
     expect(chunks[0]).toMatchObject({ type: "error", retryable: false });
+  });
+
+  it("strips forceTool when calling a model that doesn't support it", async () => {
+    const createSpy = vi.fn();
+    const fakeClient = makeFakeClient(
+      [
+        { model: "deepseek-v4-flash", choices: [{ delta: { role: "assistant" } }] },
+        { choices: [{ delta: {}, finish_reason: "stop" }] },
+      ],
+      createSpy,
+    );
+    const provider = new DeepSeekProvider({ clientFactory: () => fakeClient });
+    await collect(
+      provider.generate({
+        ...minimalRequest,
+        tools: [tool],
+        forceTool: "create_clip",
+      }),
+    );
+    const [body] = createSpy.mock.calls[0];
+    // forceTool was stripped before reaching the SDK → tool_choice falls
+    // back to 'auto', which DeepSeek-V4 accepts.
+    expect(body.tool_choice).toBe("auto");
   });
 
   it("marks 429 / 5xx errors as retryable", async () => {

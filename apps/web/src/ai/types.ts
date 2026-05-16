@@ -162,6 +162,13 @@ export interface ModelInfo {
   readonly contextWindow: number;
   readonly supportsTools: boolean;
   readonly supportsVision?: boolean;
+  // Whether the model accepts a forced tool_choice (Anthropic
+  // `tool_choice: { type: 'tool', name }` / OpenAI `tool_choice:
+  // { type: 'function', function: { name } }`). Reasoning models from
+  // DeepSeek currently reject this and require `tool_choice: 'auto'`
+  // (or omission). Default treatment when undefined: provider may
+  // assume true.
+  readonly supportsForcedToolChoice?: boolean;
   // Approximate USD cost per 1M tokens. Provider implementations populate
   // these; the UI uses them to estimate request cost before sending.
   readonly inputCostPerMTokens?: number;

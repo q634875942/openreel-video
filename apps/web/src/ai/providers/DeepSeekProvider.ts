@@ -43,12 +43,19 @@ export interface DeepSeekProviderOptions {
 // Both V4 variants are reasoning models — they emit a large prefix of
 // `reasoning_content` deltas before the final `content`. Plan for
 // max_tokens accordingly (>= 800 for short replies, more for code gen).
+// Both V4 variants are reasoning models. They accept tools but reject a
+// forced tool_choice — the API returns
+//   400: deepseek-reasoner does not support this tool_choice
+// when we send tool_choice: { type: 'function', function: { name } }.
+// We have to fall back to tool_choice: 'auto' and rely on a strong
+// system prompt to make the model actually call the tool.
 const DEEPSEEK_MODELS: readonly ModelInfo[] = [
   {
     id: "deepseek-v4-flash",
     displayName: "DeepSeek-V4 Flash",
     contextWindow: 128_000,
     supportsTools: true,
+    supportsForcedToolChoice: false,
     inputCostPerMTokens: 0.27,
     outputCostPerMTokens: 1.1,
   },
@@ -57,6 +64,7 @@ const DEEPSEEK_MODELS: readonly ModelInfo[] = [
     displayName: "DeepSeek-V4 Pro",
     contextWindow: 128_000,
     supportsTools: true,
+    supportsForcedToolChoice: false,
     inputCostPerMTokens: 0.55,
     outputCostPerMTokens: 2.19,
   },
@@ -94,9 +102,26 @@ export class DeepSeekProvider implements AIProvider {
     request: GenerateRequest,
     options?: GenerateOptions,
   ): AsyncIterable<GenerateChunk> {
-    const body = buildOpenAICompatBody(request);
+    // Strip forceTool for models that reject it (DeepSeek reasoners).
+    // The body builder will then emit tool_choice: 'auto' and we rely on
+    // the system prompt to coerce the tool call.
+    const effective = stripForcedToolChoiceIfUnsupported(request, DEEPSEEK_MODELS);
+    const body = buildOpenAICompatBody(effective);
     return adapt(this.client, body, options?.signal);
   }
+}
+
+export function stripForcedToolChoiceIfUnsupported(
+  request: GenerateRequest,
+  models: readonly ModelInfo[],
+): GenerateRequest {
+  if (!request.forceTool) return request;
+  const model = models.find((m) => m.id === request.model);
+  if (model && model.supportsForcedToolChoice === false) {
+    const { forceTool: _stripped, ...rest } = request;
+    return rest;
+  }
+  return request;
 }
 
 async function* adapt(
