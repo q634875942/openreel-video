@@ -71,6 +71,18 @@ export const ShapeClipComponent: React.FC<ShapeClipComponentProps> = ({
     onSelect(shapeClip.id, e.shiftKey || e.metaKey);
   };
 
+  // feat-008: double-click on a GeneratedClip opens the Monaco source
+  // editor. Other clip types (shape/svg/sticker) ignore double-click —
+  // no behavior previously existed there, so this is greenfield.
+  const handleDoubleClick = (e: React.MouseEvent) => {
+    if (e.button !== 0) return;
+    if (shapeClip.type !== "generated") return;
+    if (isTrimming || isDragging) return;
+    e.stopPropagation();
+    e.preventDefault();
+    useUIStore.getState().openSourceEditor(shapeClip.id);
+  };
+
   const handleTrimStart = (e: React.MouseEvent, edge: "left" | "right") => {
     if (e.button !== 0) return;
     e.stopPropagation();
@@ -209,6 +221,7 @@ export const ShapeClipComponent: React.FC<ShapeClipComponentProps> = ({
         <div
           ref={clipRef}
           onClick={handleClick}
+          onDoubleClick={handleDoubleClick}
           onMouseDown={handleMouseDown}
           className={`absolute top-1 bottom-1 rounded-lg overflow-hidden cursor-grab group ${
             isDragging ? "cursor-grabbing opacity-75" : ""

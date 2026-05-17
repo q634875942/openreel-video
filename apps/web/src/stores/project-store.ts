@@ -3645,6 +3645,17 @@ export const useProjectStore = create<ProjectState>()(
             if (graphicsEngine) {
               deleted = graphicsEngine.deleteStickerClip(entry.clipId);
             }
+          } else if (entry.type === "generated") {
+            // feat-007 fix: undo of "Add to timeline" needs to dispose the
+            // per-clip Sandbox Worker before evicting the engine entry,
+            // otherwise the Worker leaks.
+            SandboxRegistry.dispose(entry.clipId);
+            const graphicsEngine = useEngineStore
+              .getState()
+              .getGraphicsEngine();
+            if (graphicsEngine) {
+              deleted = graphicsEngine.deleteGeneratedClip(entry.clipId);
+            }
           }
 
           if (deleted) {
@@ -3867,6 +3878,32 @@ export const useProjectStore = create<ProjectState>()(
             if (graphicsEngine) {
               const stickerData = entry.clipData as StickerClip;
               graphicsEngine.addStickerClip({ ...stickerData, trackId: targetTrackId });
+              restored = true;
+            }
+          } else if (entry.type === "generated") {
+            // feat-007 fix: re-create the GeneratedClip from snapshot.
+            // SandboxRegistry will lazy-rebuild the Worker on next render.
+            const graphicsEngine = useEngineStore
+              .getState()
+              .getGraphicsEngine();
+            if (graphicsEngine) {
+              const generatedData = entry.clipData as GeneratedClip;
+              graphicsEngine.createGenerated(
+                {
+                  id: generatedData.id,
+                  source: generatedData.source,
+                  sourceLanguage: generatedData.sourceLanguage,
+                  providerId: generatedData.providerId,
+                  model: generatedData.model,
+                  paramsSchema: generatedData.paramsSchema,
+                  params: generatedData.params,
+                  promptHistory: generatedData.promptHistory,
+                  metadata: generatedData.metadata,
+                },
+                targetTrackId,
+                generatedData.startTime,
+                generatedData.duration,
+              );
               restored = true;
             }
           }

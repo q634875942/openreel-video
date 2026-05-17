@@ -17,6 +17,11 @@ export interface RegistryEntry {
   readonly clipId: string;
   readonly sandbox: Sandbox;
   readonly sourceHash: string;
+  // initPromise resolves when the sandbox finished initializing or
+  // rejects if compile/init errored. ready+initError mirror the
+  // resolved state for synchronous reads; the promise itself lets
+  // callers (e.g. SourceEditorDialog Save) await completion.
+  readonly initPromise: Promise<void>;
   ready: boolean;
   initError: Error | null;
 }
@@ -50,16 +55,18 @@ export class SandboxRegistryImpl {
     }
 
     const sandbox = this.sandboxFactory(clip);
+    const initPromise = sandbox.init(clip.source);
     const entry: RegistryEntry = {
       clipId: clip.id,
       sandbox,
       sourceHash: hash,
+      initPromise,
       ready: false,
       initError: null,
     };
     this.entries.set(clip.id, entry);
 
-    sandbox.init(clip.source).then(
+    initPromise.then(
       () => {
         // Guard against late init resolves after dispose.
         const current = this.entries.get(clip.id);
@@ -74,6 +81,39 @@ export class SandboxRegistryImpl {
     );
 
     return entry;
+  }
+
+  // Await a clip's init promise, with a timeout. Returns the resolved
+  // state so callers can branch on success vs error without try/catch.
+  // Used by SourceEditorDialog (feat-008): after a Save bumps the
+  // clip.source, the renderer's next ensure() rebuilds the sandbox;
+  // the dialog awaits this to decide whether to close or stay open
+  // with a compile-error banner.
+  async awaitReady(
+    clipId: string,
+    timeoutMs = 3000,
+  ): Promise<{ ready: boolean; error: Error | null }> {
+    const entry = this.entries.get(clipId);
+    if (!entry) {
+      return { ready: false, error: new Error("clip not in registry") };
+    }
+    try {
+      await Promise.race([
+        entry.initPromise,
+        new Promise<never>((_, reject) => {
+          setTimeout(
+            () => reject(new Error(`awaitReady timed out after ${timeoutMs}ms`)),
+            timeoutMs,
+          );
+        }),
+      ]);
+      return { ready: true, error: null };
+    } catch (err) {
+      return {
+        ready: false,
+        error: err instanceof Error ? err : new Error(String(err)),
+      };
+    }
   }
 
   get(clipId: string): RegistryEntry | undefined {

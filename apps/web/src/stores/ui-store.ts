@@ -88,6 +88,11 @@ export interface UIState {
   motionPathMode: boolean;
   motionPathClipId: string | null;
   keyframeEditorOpen: boolean;
+  // feat-008 — id of the GeneratedClip whose source is currently being
+  // edited in the Monaco-based SourceEditorDialog, or null if closed.
+  sourceEditorClipId: string | null;
+  openSourceEditor: (clipId: string) => void;
+  closeSourceEditor: () => void;
   select: (item: SelectionItem, addToSelection?: boolean) => void;
   selectMultiple: (items: SelectionItem[]) => void;
   deselect: (itemId: string) => void;
@@ -225,6 +230,8 @@ export const useUIStore = create<UIState>()(
         motionPathClipId: null,
 
         keyframeEditorOpen: false,
+
+        sourceEditorClipId: null,
 
         showWelcomeScreen: true,
         skipWelcomeScreen: false,
@@ -537,6 +544,14 @@ export const useUIStore = create<UIState>()(
 
         toggleKeyframeEditor: () => {
           set((state) => ({ keyframeEditorOpen: !state.keyframeEditorOpen }));
+        },
+
+        openSourceEditor: (clipId: string) => {
+          set({ sourceEditorClipId: clipId });
+        },
+
+        closeSourceEditor: () => {
+          set({ sourceEditorClipId: null });
         },
 
         setShowWelcomeScreen: (show: boolean) => {

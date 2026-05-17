@@ -529,6 +529,19 @@ class KeyboardShortcutsManager {
     ) {
       return;
     }
+    // Also bail when the user is typing into an editable surface
+    // (contentEditable hosts like Monaco, CodeMirror, rich-text fields)
+    // or anywhere inside an open dialog/modal — those layers own their
+    // own keyboard semantics (Ctrl+Z for editor undo, arrows for caret
+    // movement, Space for space character, etc.) and the global
+    // shortcuts service shouldn't fight them. Without this guard,
+    // typing inside the feat-008 Monaco SourceEditorDialog triggers
+    // playPause / undo project / nav-clip instead of editing text.
+    if (e.target instanceof HTMLElement) {
+      if (e.target.isContentEditable) return;
+      if (e.target.closest('[role="dialog"]')) return;
+      if (e.target.closest(".monaco-editor")) return;
+    }
 
     const matchedShortcut = this.findMatchingShortcut(e);
     if (matchedShortcut) {

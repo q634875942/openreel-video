@@ -9,6 +9,10 @@
 //
 // Coordinates are in normalized canvas units (0..1 along each axis), to
 // match the Transform convention used by other openreel Clip types.
+//
+// ⚠ If you edit any of the types below, also update the mirror string in
+//   apps/web/src/components/SourceEditor/sceneDescriptionTypes.ts so the
+//   Monaco editor's intellisense for AI-generated source stays in sync.
 
 export interface BaseShape {
   /** Optional opacity 0..1. Defaults to 1 when missing. */

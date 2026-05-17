@@ -21,6 +21,16 @@ const EditorInterface = lazy(() =>
   }))
 );
 
+// feat-008 — Monaco editor for GeneratedClip source. Lazy so Monaco's
+// ~5MB chunk doesn't bloat the main bundle for users who never edit AI
+// source. The chunk also pulls in setupMonacoEnv (worker registration)
+// the first time it loads.
+const SourceEditorDialog = lazy(() =>
+  import("./components/SourceEditor/SourceEditorDialog").then((m) => ({
+    default: m.SourceEditorDialog,
+  }))
+);
+
 const LoadingSpinner: React.FC<{ message: string }> = ({ message }) => (
   <div className="h-screen w-screen bg-background flex flex-col items-center justify-center">
     <div className="w-10 h-10 border-2 border-primary border-t-transparent rounded-full animate-spin mb-3" />
@@ -158,6 +168,9 @@ function App() {
         />
         <SearchModal isOpen={activeModal === "search"} onClose={closeModal} />
         <AIPanel open={aiPanelOpen} onClose={() => setAiPanelOpen(false)} />
+        <Suspense fallback={null}>
+          <SourceEditorDialog />
+        </Suspense>
         {showDialog && availableSaves.length > 0 && (
           <RecoveryDialog
             saves={availableSaves}

@@ -186,4 +186,47 @@ describe("SandboxRegistry", () => {
     expect(entry.sandbox.getLatestScene().shapes).toHaveLength(1);
     registry.disposeAll();
   });
+
+  describe("awaitReady (feat-008)", () => {
+    it("resolves ready:true when init succeeds", async () => {
+      const { registry } = makeRegistryWithFakeWorkers();
+      const clip = makeClip();
+      registry.ensure(clip);
+      const result = await registry.awaitReady(clip.id);
+      expect(result.ready).toBe(true);
+      expect(result.error).toBeNull();
+      registry.disposeAll();
+    });
+
+    it("resolves ready:false with the compile error when init fails", async () => {
+      const { registry } = makeRegistryWithFakeWorkers();
+      const clip = makeClip({ source: "({ broken" });
+      registry.ensure(clip);
+      const result = await registry.awaitReady(clip.id);
+      expect(result.ready).toBe(false);
+      expect(result.error).toBeInstanceOf(Error);
+      expect(result.error?.message).toMatch(/compile failed/i);
+      registry.disposeAll();
+    });
+
+    it("returns an error when the clipId is not registered", async () => {
+      const { registry } = makeRegistryWithFakeWorkers();
+      const result = await registry.awaitReady("not-here");
+      expect(result.ready).toBe(false);
+      expect(result.error?.message).toMatch(/not in registry/i);
+    });
+
+    it("after source change, awaiting the new entry sees the new init", async () => {
+      const { registry, fakes } = makeRegistryWithFakeWorkers();
+      registry.ensure(makeClip({ source: VALID_SOURCE }));
+      await registry.awaitReady("clip-1");
+      // Source change triggers rebuild.
+      registry.ensure(makeClip({ source: VALID_SOURCE_2 }));
+      const result = await registry.awaitReady("clip-1");
+      expect(result.ready).toBe(true);
+      expect(fakes.length).toBe(2);
+      expect(fakes[0].terminated).toBe(true);
+      registry.disposeAll();
+    });
+  });
 });
